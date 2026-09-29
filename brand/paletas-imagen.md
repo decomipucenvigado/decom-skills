@@ -10,12 +10,12 @@ parses it, so edit it in plain words.
 
 By the event's ministry when it has one, else by the words of its title, else the default.
 An event that fits two kinds takes its ministry's kind, otherwise the first row it matches
-in the table's order. The final report says which kind each event took.
+in the table's order. The final report says which kind each event took. Rows are checked from the top, so a more specific group sits above a broader one: an event for the young women's group ("Damas Jóvenes") is Damas, not Jóvenes.
 
 | Kind | When | Field | Accent |
 |---|---|---|---|
+| Damas | ministry Damas Dorcas; title says damas (this includes "Damas Jóvenes") | magenta | cream |
 | Jóvenes | ministry Jóvenes or Adolescentes; title says jóvenes, juvenil or adolescentes | violet | gold |
-| Damas | ministry Damas Dorcas; title says damas | magenta | cream |
 | Evangelismo | ministry Evangelismo; title says evangelístico, evangelismo or campaña | amber | navy |
 | Enseñanza | title says oración, enseñanza or escuela dominical | teal | white |
 | Ayuno | title says ayuno | deep indigo | muted gold |
