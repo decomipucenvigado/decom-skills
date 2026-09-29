@@ -4,7 +4,7 @@
 
 **Goal:** Each event's `ad.png` comes from a weekly Claude Design canvas (one artboard per event, a color per kind of event) instead of a Remotion frame, while the video stays on Remotion.
 
-**Architecture:** The orchestrator builds one private Design artifact per week and reads its published HTML back to `out/<week>/imagenes/`. A new script drives the project's own headless Chromium over the DevTools protocol (Node built-ins only): it extracts each artboard's visible text, audits it against `events.json`, then screenshots each `[data-slug]` element to `out/<week>/<slug>/ad.png`. `render.mjs` keeps producing the video and writes its frame to `fotograma.png`.
+**Architecture:** The orchestrator builds one private Design artifact per week and reads its published artboards and assets back to `out/<week>/imagenes/`, where a staging step resolves their `/_blob` references. A new script drives the project's own headless Chromium over the DevTools protocol (Node built-ins only): it extracts each artboard's visible text, audits it against `events.json`, then screenshots each `[data-slug]` element to `out/<week>/<slug>/ad.png`. `render.mjs` keeps producing the video and writes its frame to `fotograma.png`.
 
 **Tech Stack:** Node 22+ ESM (`node:test`, global `WebSocket`, `child_process`), Remotion 4.0.526's downloaded `chrome-headless-shell`, the `Artifact` tool with the Design type.
 
@@ -14,6 +14,7 @@
 
 - Scripts use Node built-ins only. No new dependency in the repo (there is no root `package.json`; `video/` owns the Remotion packages).
 - Every image is 16:9, exactly 1920x1080 (`CLAUDE.md` rule 3).
+- A render that "succeeds" proves nothing: the exporter must fail loudly when a `/_blob` asset, a font or an image did not really load (the spike showed that a missing asset renders a broken logo and a fallback font with no error at all).
 - Never invent an event fact: an artboard may show only `titulo`, `ministerio`, `fechaTexto`, `horaTexto` (if the event has a time), `lugar` (only if it differs from `iglesia.lugarPorDefecto`) and `iglesia.llamadoAccion`.
 - The church name reaches the screen only through the logo image; an artboard never types it.
 - Work on `scripts/` is test-first: `node --test scripts/test/*.test.mjs` (use the glob).
@@ -32,12 +33,13 @@
 | File | Responsibility |
 |---|---|
 | `scripts/core/still-source.mjs` (create) | Pure audit: `checkStillText(tableros, doc)` compares each artboard's visible text with the record. |
+| `scripts/core/stage-canvas.mjs` (create) | `stageCanvas(dir, staging)`: copies each downloaded artboard (`project/*.dc.html`) into a staging folder with every `/_blob/<id>` rewritten to `assets/<id>.<ext>`, and reports assets that were not downloaded. |
 | `scripts/core/cdp.mjs` (create) | `resolveBrowser()` finds the headless shell; `openPage(executable)` launches it and returns a tiny page driver (`navigate`, `evaluate`, `screenshot`, `close`). |
-| `scripts/core/export-stills.mjs` (create) | `exportStills({htmlPath, doc, salida, slugs})`: opens the HTML, reads the artboards, audits, screenshots. No paths of the repo baked in. |
-| `scripts/export-stills.mjs` (create) | Thin CLI: `node scripts/export-stills.mjs <week> [slug ...]`. |
+| `scripts/core/export-stills.mjs` (create) | `exportStills({dir, doc, salida, slugs, executable})`: stages the canvas, opens each artboard, checks fonts and images really loaded, audits, screenshots. No paths of the repo baked in. |
+| `scripts/export-stills.mjs` (create) | Thin CLI: `node scripts/export-stills.mjs <week> [slug ...] [--dir path]`. |
 | `scripts/test/still-source.test.mjs` (create) | Unit tests of the audit. |
-| `scripts/test/export-stills.test.mjs` (create) | Exporter test against a fixture HTML; skipped when no browser is available. |
-| `scripts/test/fixtures/stills-ejemplo.html` (create) | Fixture with two artboards, the second below the fold. |
+| `scripts/test/stage-canvas.test.mjs` (create) | Unit tests of the staging, on canvases built in temp folders. |
+| `scripts/test/export-stills.test.mjs` (create) | Exporter tests on canvases built in temp folders; the browser ones are skipped when no browser is available. |
 | `scripts/render.mjs` (modify) | Writes the Remotion frame as `fotograma.png`. |
 | `brand/paletas-imagen.md` (create) | Free text: palette per kind of event and the brief for Claude Design. |
 | `CLAUDE.md`, `PLAN.md`, `README.md`, `.claude/skills/church-ads/SKILL.md`, `brand/corporate-brand.md` (modify) | Rules and flow updated. |
@@ -56,7 +58,7 @@ This decides go or no-go for everything after it. Nothing here is kept unless it
 
 **Interfaces:**
 - Consumes: the `Artifact` tool (Design type), the logo `brand/logo/IPUC_COLOR para fondo oscuro.png`, the fonts under `video/public/brand/fonts/` (find the real path with `ls video/public/brand/fonts`).
-- Produces: a go/no-go, and the two facts Task 3 and Task 7 rely on: (1) the layout of the files `Artifact read` writes to disk, (2) whether the artboards can be selected by `data-slug`.
+- Produces: a go/no-go, and the two facts Task 4 and Task 8 rely on: (1) the layout of the files `Artifact read` writes to disk, (2) whether the artboards can be selected by `data-slug`.
 
 - [ ] **Step 1: Create the branch**
 
@@ -363,60 +365,236 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 3: Browser driver and exporter
+### Task 3: Stage the downloaded canvas
+
+The spike showed that a downloaded canvas cannot be opened as it is: the artboard HTML refers to its logo and fonts as `/_blob/<32 hex id>`, `Artifact read` saves those assets apart as `<id>.<ext>` at the root of the download, and opened from disk the references fail silently (broken logo, fallback font, and the export still "succeeds"). This task builds the step that fixes that.
+
+**Files:**
+- Create: `scripts/core/stage-canvas.mjs`
+- Test: `scripts/test/stage-canvas.test.mjs`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks. The input is a directory laid out as the spike recorded: `project/*.dc.html` (one file per artboard; `project/ds/` and any other subfolder are ignored) and, at the root of that directory, the assets as `<32 hex id>.<ext>`.
+- Produces: `stageCanvas(dir, staging)` returning `{paginas: Array<{archivo: string, ruta: string}>, problemas: Array<{regla: string, mensaje: string}>}`.
+  - `archivo` is the artboard file's path relative to `dir` (`project/Main.dc.html`); `ruta` is its staged copy inside `staging`, which a browser can open from disk.
+  - `staging` is an existing directory. The function writes `staging/<file name>` and `staging/assets/<id>.<ext>`.
+  - Rules: `sin-artboards` (no `project/*.dc.html`), `asset-faltante` (a `/_blob/<id>` that has no `<id>.*` file at the root of `dir`).
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `scripts/test/stage-canvas.test.mjs`:
+
+```js
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { stageCanvas } from '../core/stage-canvas.mjs';
+
+const LOGO = 'a'.repeat(32);
+const FUENTE = 'b'.repeat(32);
+
+/** A downloaded canvas in a temp dir: artboards under project/, assets at the root. */
+function canvas(artboards, assets = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'canvas-'));
+  mkdirSync(join(dir, 'project', 'ds'), { recursive: true });
+  for (const [nombre, html] of Object.entries(artboards)) writeFileSync(join(dir, 'project', nombre), html);
+  for (const [nombre, contenido] of Object.entries(assets)) writeFileSync(join(dir, nombre), contenido);
+  return dir;
+}
+
+/** Runs `fn(dir, staging)` and always removes both temp folders. */
+function conCanvas(artboards, assets, fn) {
+  const dir = canvas(artboards, assets);
+  const staging = mkdtempSync(join(tmpdir(), 'staging-'));
+  try {
+    return fn(dir, staging);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+test('every /_blob reference becomes a relative path and its asset is copied', () => {
+  const html = `<img src="/_blob/${LOGO}"><style>@font-face{font-family:X;src:url(/_blob/${FUENTE})}</style><img src="/_blob/${LOGO}">`;
+  conCanvas({ 'Main.dc.html': html }, { [`${LOGO}.png`]: 'png', [`${FUENTE}.woff2`]: 'font' }, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas, []);
+    assert.deepEqual(r.paginas.map((p) => p.archivo), ['project/Main.dc.html']);
+    const salida = readFileSync(r.paginas[0].ruta, 'utf8');
+    assert.equal(salida.includes('/_blob/'), false);
+    assert.ok(salida.includes(`src="assets/${LOGO}.png"`));
+    assert.ok(salida.includes(`url(assets/${FUENTE}.woff2)`));
+    assert.equal(readFileSync(join(staging, 'assets', `${LOGO}.png`), 'utf8'), 'png');
+    assert.equal(readFileSync(join(staging, 'assets', `${FUENTE}.woff2`), 'utf8'), 'font');
+  });
+});
+
+test('a reference with no downloaded asset is a problem that names the id', () => {
+  conCanvas({ 'Main.dc.html': `<img src="/_blob/${LOGO}">` }, {}, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas.map((p) => p.regla), ['asset-faltante']);
+    assert.ok(r.problemas[0].mensaje.includes(LOGO));
+    assert.ok(r.problemas[0].mensaje.includes('project/Main.dc.html'));
+  });
+});
+
+test('the same missing asset used twice is reported once', () => {
+  conCanvas({ 'Main.dc.html': `<img src="/_blob/${LOGO}"><img src="/_blob/${LOGO}">` }, {}, (dir, staging) => {
+    assert.equal(stageCanvas(dir, staging).problemas.length, 1);
+  });
+});
+
+test('several artboards are staged in name order; project/ds and other files are ignored', () => {
+  conCanvas({ 'Main.dc.html': '<p>uno</p>', 'Otro.dc.html': '<p>dos</p>', 'canvas.json': '{}', 'notas.md': 'x' }, {}, (dir, staging) => {
+    writeFileSync(join(dir, 'project', 'ds', 'Sistema.dc.html'), '<p>ds</p>');
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas, []);
+    assert.deepEqual(r.paginas.map((p) => p.archivo), ['project/Main.dc.html', 'project/Otro.dc.html']);
+    assert.equal(existsSync(join(staging, 'Sistema.dc.html')), false);
+    assert.equal(readFileSync(join(staging, 'Otro.dc.html'), 'utf8'), '<p>dos</p>');
+  });
+});
+
+test('a download with no artboards is a problem', () => {
+  conCanvas({}, {}, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas.map((p) => p.regla), ['sin-artboards']);
+    assert.deepEqual(r.paginas, []);
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `node --test scripts/test/stage-canvas.test.mjs`
+Expected: FAIL, `Cannot find module '../core/stage-canvas.mjs'`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `scripts/core/stage-canvas.mjs`:
+
+```js
+// Prepares a downloaded Claude Design canvas for a browser. Its artboards (project/*.dc.html)
+// refer to images and fonts as /_blob/<32 hex id>; `Artifact read` saves each of those apart, as
+// <id>.<ext> at the root of the download. Opened from disk the /_blob paths fail silently (a
+// broken logo, a fallback font, and the export would still "succeed"), so each artboard is copied
+// into a staging folder with every blob reference rewritten to a relative path, and any blob
+// with no file is reported.
+
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const BLOB = /\/_blob\/([0-9a-f]{32})/g;
+const ASSET = /^([0-9a-f]{32})\.[A-Za-z0-9]+$/;
+
+/**
+ * @param {string} dir the downloaded canvas: project/*.dc.html plus <id>.<ext> assets at its root
+ * @param {string} staging an existing directory to write the browser-ready copies into
+ * @returns {{paginas: Array<{archivo: string, ruta: string}>, problemas: Array<{regla: string, mensaje: string}>}}
+ */
+export function stageCanvas(dir, staging) {
+  const problemas = [];
+  const proyecto = join(dir, 'project');
+  const archivos = existsSync(proyecto)
+    ? readdirSync(proyecto, { withFileTypes: true })
+        .filter((d) => d.isFile() && d.name.endsWith('.dc.html'))
+        .map((d) => d.name)
+        .sort()
+    : [];
+  if (!archivos.length) {
+    problemas.push({ regla: 'sin-artboards', mensaje: `no project/*.dc.html in ${dir}: read the canvas back first` });
+    return { paginas: [], problemas };
+  }
+
+  const assets = new Map();
+  for (const nombre of readdirSync(dir)) {
+    const m = ASSET.exec(nombre);
+    if (m) assets.set(m[1], nombre);
+  }
+
+  mkdirSync(join(staging, 'assets'), { recursive: true });
+  const paginas = [];
+  for (const nombre of archivos) {
+    const archivo = `project/${nombre}`;
+    const faltan = new Set();
+    const reescrito = readFileSync(join(proyecto, nombre), 'utf8').replace(BLOB, (todo, id) => {
+      const asset = assets.get(id);
+      if (!asset) {
+        faltan.add(id);
+        return todo;
+      }
+      copyFileSync(join(dir, asset), join(staging, 'assets', asset));
+      return `assets/${asset}`;
+    });
+    for (const id of faltan) {
+      problemas.push({ regla: 'asset-faltante', mensaje: `${archivo} refers to /_blob/${id}, which was not downloaded: read that asset back with Artifact read (path)` });
+    }
+    const ruta = join(staging, nombre);
+    writeFileSync(ruta, reescrito);
+    paginas.push({ archivo, ruta });
+  }
+  return { paginas, problemas };
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `node --test scripts/test/stage-canvas.test.mjs`
+Expected: 5 tests pass, 0 fail.
+
+- [ ] **Step 5: Run the whole suite**
+
+Run: `node --test scripts/test/*.test.mjs`
+Expected: all pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add scripts/core/stage-canvas.mjs scripts/test/stage-canvas.test.mjs
+git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "feat: stage a downloaded Claude Design canvas so a browser can open it
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 4: Browser driver and exporter
 
 **Files:**
 - Create: `scripts/core/cdp.mjs`, `scripts/core/export-stills.mjs`, `scripts/export-stills.mjs`
-- Create: `scripts/test/fixtures/stills-ejemplo.html`
 - Test: `scripts/test/export-stills.test.mjs`
 
 **Interfaces:**
-- Consumes: `checkStillText(tableros, doc)` from Task 2; `ROOT`, `weekDir`, `parseArgs`, `printIssues` from `scripts/core/project.mjs`.
+- Consumes: `checkStillText(tableros, doc)` from Task 2; `stageCanvas(dir, staging)` from Task 3; `ROOT`, `weekDir`, `parseArgs`, `printIssues` from `scripts/core/project.mjs`.
 - Produces:
-  - `resolveBrowser(): Promise<string>`: `REMOTION_BROWSER_EXECUTABLE` if set, else the first `chrome-headless-shell` under `video/node_modules/.remotion/chrome-headless-shell/*/*/`, else throws an `Error` whose message says how to set the variable (it never downloads).
+  - `resolveBrowser(): Promise<string>`: `REMOTION_BROWSER_EXECUTABLE` if set (it must exist, else it throws), else the first `chrome-headless-shell` under `video/node_modules/.remotion/chrome-headless-shell/*/*/`, else throws an `Error` whose message says how to set the variable. It never downloads.
   - `openPage(executable): Promise<{navigate(url): Promise<void>, evaluate(expression): Promise<any>, screenshot(clip): Promise<Buffer>, close(): Promise<void>}>`. `clip` is `{x, y, width, height}`; the PNG is 1:1 (`scale: 1`).
-  - `exportStills({htmlPath, doc, salida, slugs, executable}): Promise<{errores, avisos, escritos: string[]}>`. `salida(slug)` returns the PNG path for a slug. `slugs` is an optional list to export (empty or missing: all). Nothing is written when the audit has errors or an artboard is not 1920x1080.
+  - `exportStills({dir, doc, salida, slugs, executable}): Promise<{errores, avisos, escritos: string[]}>`. `dir` is the downloaded canvas (Task 3's input); `salida(slug)` returns the PNG path for a slug; `slugs` is an optional list to export (empty or missing: all). Every artboard is found by `[data-slug]` in each staged `project/*.dc.html`; the slug is never taken from a file name. Nothing is written when there is any error. Errors it adds to Task 2's and Task 3's rules: `fuente-no-cargada` (a `document.fonts` entry whose status is `error` or `loading` once fonts are ready), `imagen-rota` (an `<img>` with `!complete || naturalWidth === 0`), `tamano-artboard` (an artboard that is not exactly 1920x1080). The staging folder is always removed and the browser always closed.
 
-- [ ] **Step 1: Write the fixture**
-
-Create `scripts/test/fixtures/stills-ejemplo.html`:
-
-```html
-<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><style>
-body { margin: 0; background: #222; }
-.ab { width: 1920px; height: 1080px; position: relative; overflow: hidden; margin-bottom: 40px; color: #fff; font: 700 120px sans-serif; }
-</style></head><body>
-<div class="ab" data-slug="culto-jovenes" style="background: #7a2bd6">
-  <span style="text-transform: uppercase">Culto de jóvenes</span>
-  <p style="font-size: 60px">Viernes 3 de octubre · 7:00 p. m.</p>
-</div>
-<div class="ab" data-slug="retiro-familias" style="background: #0a7d6e">
-  <span>Retiro de familias</span>
-  <p style="font-size: 60px">Sábado 4 de octubre</p>
-</div>
-</body></html>
-```
-
-- [ ] **Step 2: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
 Create `scripts/test/export-stills.test.mjs`:
 
 ```js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { exportStills } from '../core/export-stills.mjs';
 import { resolveBrowser } from '../core/cdp.mjs';
 
-const HTML = fileURLToPath(new URL('./fixtures/stills-ejemplo.html', import.meta.url));
 const IGLESIA = { nombre: 'Iglesia Ejemplo', lugarPorDefecto: 'Templo', llamadoAccion: null };
 const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: null, fechaTexto: 'viernes 3 de octubre', horaTexto: '7:00 p. m.', lugar: null };
 const RETIRO = { slug: 'retiro-familias', titulo: 'Retiro de familias', ministerio: null, fechaTexto: 'sábado 4 de octubre', horaTexto: null, lugar: null };
 const DOC = { iglesia: IGLESIA, events: [CULTO, RETIRO] };
+
+// A valid 1x1 png. If the browser reports naturalWidth 0 for it, swap in any valid 1x1 png.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+const LOGO = 'a'.repeat(32);
+const FUENTE = 'b'.repeat(32);
 
 let executable = null;
 try {
@@ -426,50 +604,118 @@ try {
 }
 const sinNavegador = executable ? false : 'no headless browser available (set REMOTION_BROWSER_EXECUTABLE)';
 
+const pagina = (cuerpo, estilo = '') =>
+  `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}.ab{width:1920px;height:1080px;position:relative;overflow:hidden;margin-bottom:40px;color:#fff;font:700 120px sans-serif;background:#7a2bd6}${estilo}</style></head><body>${cuerpo}</body></html>`;
+const culto = (extra = '', atributos = '') => `<div class="ab" data-slug="culto-jovenes" ${atributos}><span>Culto de jóvenes</span><p style="font-size:60px">viernes 3 de octubre · 7:00 p. m.</p>${extra}</div>`;
+const retiro = `<div class="ab" data-slug="retiro-familias"><span>Retiro de familias</span><p style="font-size:60px">sábado 4 de octubre</p></div>`;
+
+/** A downloaded canvas in a temp dir; `assets` are written at its root. Runs `fn(dir, salida)`, always cleans up. */
+async function conCanvas(artboards, assets, fn) {
+  const dir = mkdtempSync(join(tmpdir(), 'canvas-'));
+  const fuera = mkdtempSync(join(tmpdir(), 'stills-'));
+  try {
+    mkdirSync(join(dir, 'project'), { recursive: true });
+    for (const [nombre, html] of Object.entries(artboards)) writeFileSync(join(dir, 'project', nombre), html);
+    for (const [nombre, contenido] of Object.entries(assets)) writeFileSync(join(dir, nombre), contenido);
+    return await fn(dir, (slug) => join(fuera, `${slug}.png`), fuera);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(fuera, { recursive: true, force: true });
+  }
+}
+
 const pngSize = (path) => {
   const b = readFileSync(path);
   return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
 };
-const carpeta = () => mkdtempSync(join(tmpdir(), 'stills-'));
+const reglas = (r) => r.errores.map((e) => e.regla);
 
-test('every artboard becomes a 1920x1080 png, even the one below the fold', { skip: sinNavegador }, async () => {
-  const dir = carpeta();
-  try {
-    const r = await exportStills({ htmlPath: HTML, doc: DOC, salida: (slug) => join(dir, `${slug}.png`), executable });
+test('two artboards in one file become 1920x1080 pngs, even the one below the fold', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
     assert.deepEqual(r.errores, []);
     assert.deepEqual(r.escritos.map((p) => p.split('/').pop()).sort(), ['culto-jovenes.png', 'retiro-familias.png']);
     for (const p of r.escritos) assert.deepEqual(pngSize(p), { width: 1920, height: 1080 });
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  });
+});
+
+test('artboards spread over several files are all exported, named by data-slug and not by file', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto()), 'Otro.dc.html': pagina(retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
+    assert.deepEqual(r.errores, []);
+    assert.deepEqual(r.escritos.map((p) => p.split('/').pop()).sort(), ['culto-jovenes.png', 'retiro-familias.png']);
+  });
 });
 
 test('only the requested slugs are exported', { skip: sinNavegador }, async () => {
-  const dir = carpeta();
-  try {
-    const r = await exportStills({ htmlPath: HTML, doc: DOC, slugs: ['retiro-familias'], salida: (slug) => join(dir, `${slug}.png`), executable });
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, slugs: ['retiro-familias'], salida, executable });
     assert.deepEqual(r.errores, []);
-    assert.equal(existsSync(join(dir, 'retiro-familias.png')), true);
-    assert.equal(existsSync(join(dir, 'culto-jovenes.png')), false);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+    assert.equal(existsSync(salida('retiro-familias')), true);
+    assert.equal(existsSync(salida('culto-jovenes')), false);
+  });
+});
+
+test('an image that loads through /_blob passes', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto(`<img src="/_blob/${LOGO}" width="10" height="10">`) + retiro) }, { [`${LOGO}.png`]: PNG }, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
+    assert.deepEqual(r.errores, []);
+    assert.equal(r.escritos.length, 2);
+  });
 });
 
 test('an audit error writes nothing', { skip: sinNavegador }, async () => {
-  const dir = carpeta();
-  try {
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
     const doc = { ...DOC, events: [{ ...CULTO, horaTexto: '8:00 p. m.' }, RETIRO] };
-    const r = await exportStills({ htmlPath: HTML, doc, salida: (slug) => join(dir, `${slug}.png`), executable });
-    assert.deepEqual(r.errores.map((e) => e.regla), ['token-ajeno']);
+    const r = await exportStills({ dir, doc, salida, executable });
+    assert.deepEqual(reglas(r), ['token-ajeno']);
     assert.deepEqual(r.escritos, []);
-    assert.equal(existsSync(join(dir, 'culto-jovenes.png')), false);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+    assert.equal(existsSync(salida('culto-jovenes')), false);
+  });
 });
 
-test('resolveBrowser explains how to set the browser when there is none', async () => {
+test('an artboard that is not 1920x1080 is an error', { skip: sinNavegador }, async () => {
+  const chico = culto().replace('class="ab"', 'class="ab" style="width:1280px;height:720px"');
+  await conCanvas({ 'Main.dc.html': pagina(chico + retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
+    assert.deepEqual(reglas(r), ['tamano-artboard']);
+    assert.deepEqual(r.escritos, []);
+  });
+});
+
+test('a broken image is an error, not a silent broken-image box', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto(`<img src="/_blob/${LOGO}" width="10" height="10">`) + retiro) }, { [`${LOGO}.png`]: 'not a png' }, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
+    assert.deepEqual(reglas(r), ['imagen-rota']);
+    assert.deepEqual(r.escritos, []);
+  });
+});
+
+test('a font that fails to load is an error, not a silent fallback font', { skip: sinNavegador }, async () => {
+  const estilo = `@font-face{font-family:Rota;src:url(/_blob/${FUENTE})}.ab{font-family:Rota,sans-serif}`;
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro, estilo) }, { [`${FUENTE}.woff2`]: 'not a font' }, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable });
+    assert.deepEqual(reglas(r), ['fuente-no-cargada']);
+    assert.deepEqual(r.escritos, []);
+  });
+});
+
+test('a /_blob reference with no downloaded asset stops before any browser is opened', async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto(`<img src="/_blob/${LOGO}">`) + retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable: '/no/browser/needed' });
+    assert.deepEqual(reglas(r), ['asset-faltante']);
+    assert.deepEqual(r.escritos, []);
+  });
+});
+
+test('a download with no artboards is an error', async () => {
+  await conCanvas({}, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, salida, executable: '/no/browser/needed' });
+    assert.deepEqual(reglas(r), ['sin-artboards']);
+  });
+});
+
+test('resolveBrowser explains how to set the browser when the named one does not exist', async () => {
   const antes = process.env.REMOTION_BROWSER_EXECUTABLE;
   process.env.REMOTION_BROWSER_EXECUTABLE = '/no/such/browser';
   try {
@@ -481,12 +727,12 @@ test('resolveBrowser explains how to set the browser when there is none', async 
 });
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `node --test scripts/test/export-stills.test.mjs`
 Expected: FAIL, `Cannot find module '../core/export-stills.mjs'`.
 
-- [ ] **Step 4: Write the browser driver**
+- [ ] **Step 3: Write the browser driver**
 
 Create `scripts/core/cdp.mjs`:
 
@@ -576,83 +822,119 @@ export async function openPage(executable) {
       ws.send(JSON.stringify({ id: i, method, params, sessionId }));
     });
 
-  const { targetId } = await enviar('Target.createTarget', { url: 'about:blank' });
-  const { sessionId } = await enviar('Target.attachToTarget', { targetId, flatten: true });
-  const cmd = (method, params) => enviar(method, params, sessionId);
-  await cmd('Page.enable');
-  await cmd('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
+  try {
+    const { targetId } = await enviar('Target.createTarget', { url: 'about:blank' });
+    const { sessionId } = await enviar('Target.attachToTarget', { targetId, flatten: true });
+    const cmd = (method, params) => enviar(method, params, sessionId);
+    await cmd('Page.enable');
+    await cmd('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
 
-  return {
-    async navigate(url) {
-      const cargada = new Promise((res) => {
-        const oyente = (m) => {
-          if (m.method === 'Page.loadEventFired') {
-            oyentes.splice(oyentes.indexOf(oyente), 1);
-            res();
-          }
-        };
-        oyentes.push(oyente);
-      });
-      await cmd('Page.navigate', { url });
-      await cargada;
-    },
-    async evaluate(expression) {
-      const r = await cmd('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-      if (r.exceptionDetails) throw new Error(`the page threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
-      return r.result.value;
-    },
-    async screenshot({ x, y, width, height }) {
-      const r = await cmd('Page.captureScreenshot', { format: 'png', clip: { x, y, width, height, scale: 1 }, captureBeyondViewport: true });
-      return Buffer.from(r.data, 'base64');
-    },
-    async close() {
-      ws.close();
-      cerrar();
-    },
-  };
+    return {
+      async navigate(url) {
+        const cargada = new Promise((res) => {
+          const oyente = (m) => {
+            if (m.method === 'Page.loadEventFired') {
+              oyentes.splice(oyentes.indexOf(oyente), 1);
+              res();
+            }
+          };
+          oyentes.push(oyente);
+        });
+        await cmd('Page.navigate', { url });
+        await cargada;
+      },
+      async evaluate(expression) {
+        const r = await cmd('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+        if (r.exceptionDetails) throw new Error(`the page threw: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
+        return r.result.value;
+      },
+      async screenshot({ x, y, width, height }) {
+        const r = await cmd('Page.captureScreenshot', { format: 'png', clip: { x, y, width, height, scale: 1 }, captureBeyondViewport: true });
+        return Buffer.from(r.data, 'base64');
+      },
+      async close() {
+        ws.close();
+        cerrar();
+      },
+    };
+  } catch (err) {
+    ws.close();
+    cerrar();
+    throw err;
+  }
 }
 ```
 
-- [ ] **Step 5: Write the exporter core**
+- [ ] **Step 4: Write the exporter core**
 
 Create `scripts/core/export-stills.mjs`:
 
 ```js
 // Photographs each Claude Design artboard ([data-slug]) of a downloaded canvas into a
-// 1920x1080 png. The artboards' visible text is audited against events.json first
-// (core/still-source.mjs); with any error, or an artboard of the wrong size, nothing is written.
+// 1920x1080 png. The canvas is staged first (core/stage-canvas.mjs) so its /_blob assets
+// resolve; then, before any screenshot, the page must prove it rendered for real: every font
+// loaded, every image decoded, every artboard exactly 1920x1080, and the artboards' visible text
+// passes the audit against events.json (core/still-source.mjs). With any error, nothing is written.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { checkStillText } from './still-source.mjs';
 import { openPage } from './cdp.mjs';
+import { stageCanvas } from './stage-canvas.mjs';
 
 const ANCHO = 1920;
 const ALTO = 1080;
 
-const LEER_TABLEROS = `(async () => {
+const LEER = `(async () => {
   await document.fonts.ready;
-  return [...document.querySelectorAll('[data-slug]')].map((el) => {
+  const fuentes = [...document.fonts].map((f) => ({ family: f.family, status: f.status }));
+  const imagenes = [...document.images].map((i) => ({ src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0 }));
+  const tableros = [...document.querySelectorAll('[data-slug]')].map((el) => {
     const r = el.getBoundingClientRect();
     return { slug: el.dataset.slug, text: el.innerText, x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height };
   });
+  return { fuentes, imagenes, tableros };
 })()`;
 
 /**
- * @param {{htmlPath: string, doc: object, salida: (slug: string) => string, slugs?: string[], executable: string}} opciones
+ * @param {{dir: string, doc: object, salida: (slug: string) => string, slugs?: string[], executable: string}} opciones
  * @returns {Promise<{errores: object[], avisos: object[], escritos: string[]}>}
  */
-export async function exportStills({ htmlPath, doc, salida, slugs = [], executable }) {
-  const pagina = await openPage(executable);
+export async function exportStills({ dir, doc, salida, slugs = [], executable }) {
+  const staging = mkdtempSync(join(tmpdir(), 'canvas-staging-'));
+  let pagina = null;
   try {
-    await pagina.navigate(pathToFileURL(htmlPath).href);
-    const tableros = await pagina.evaluate(LEER_TABLEROS);
-    const { errores, avisos } = checkStillText(
-      tableros.map(({ slug, text }) => ({ slug, text })),
+    const { paginas, problemas } = stageCanvas(dir, staging);
+    const errores = problemas.map((p) => ({ ...p }));
+    const avisos = [];
+    if (errores.length) return { errores, avisos, escritos: [] };
+
+    pagina = await openPage(executable);
+    const leidas = [];
+    for (const p of paginas) {
+      await pagina.navigate(pathToFileURL(p.ruta).href);
+      const { fuentes, imagenes, tableros } = await pagina.evaluate(LEER);
+      for (const f of fuentes) {
+        if (f.status === 'error' || f.status === 'loading') {
+          errores.push({ regla: 'fuente-no-cargada', mensaje: `${p.archivo}: the font "${f.family}" did not load (${f.status})` });
+        }
+      }
+      for (const i of imagenes) {
+        if (!i.ok) errores.push({ regla: 'imagen-rota', mensaje: `${p.archivo}: the image "${i.src}" did not load` });
+      }
+      leidas.push({ ...p, tableros });
+    }
+
+    const todos = leidas.flatMap((p) => p.tableros);
+    const auditoria = checkStillText(
+      todos.map(({ slug, text }) => ({ slug, text })),
       doc,
     );
-    for (const t of tableros) {
+    errores.push(...auditoria.errores);
+    avisos.push(...auditoria.avisos);
+    for (const t of todos) {
       if (t.width !== ANCHO || t.height !== ALTO) {
         errores.push({ regla: 'tamano-artboard', slug: t.slug, mensaje: `the artboard is ${t.width}x${t.height}, it must be exactly ${ANCHO}x${ALTO}` });
       }
@@ -660,27 +942,33 @@ export async function exportStills({ htmlPath, doc, salida, slugs = [], executab
     if (errores.length) return { errores, avisos, escritos: [] };
 
     const escritos = [];
-    for (const t of tableros) {
-      if (slugs.length && !slugs.includes(t.slug)) continue;
-      const png = await pagina.screenshot(t);
-      const destino = salida(t.slug);
-      mkdirSync(dirname(destino), { recursive: true });
-      writeFileSync(destino, png);
-      escritos.push(destino);
+    for (const p of leidas) {
+      const elegidos = p.tableros.filter((t) => !slugs.length || slugs.includes(t.slug));
+      if (!elegidos.length) continue;
+      await pagina.navigate(pathToFileURL(p.ruta).href);
+      await pagina.evaluate('document.fonts.ready.then(() => true)');
+      for (const t of elegidos) {
+        const png = await pagina.screenshot(t);
+        const destino = salida(t.slug);
+        mkdirSync(dirname(destino), { recursive: true });
+        writeFileSync(destino, png);
+        escritos.push(destino);
+      }
     }
     return { errores, avisos, escritos };
   } finally {
-    await pagina.close();
+    if (pagina) await pagina.close();
+    rmSync(staging, { recursive: true, force: true });
   }
 }
 ```
 
-- [ ] **Step 6: Run the exporter tests to verify they pass**
+- [ ] **Step 5: Run the exporter tests to verify they pass**
 
 Run: `node --test scripts/test/export-stills.test.mjs`
-Expected: 4 tests pass (the three browser tests run when the headless shell is installed at `video/node_modules/.remotion/`, otherwise they are reported as skipped and the fourth still passes).
+Expected: 11 tests pass. The browser tests run when a headless shell is installed under `video/node_modules/.remotion/` (or `REMOTION_BROWSER_EXECUTABLE` is set); otherwise they are reported as skipped and the three browser-free tests still pass. If the "image that loads" test fails only because the tiny PNG is rejected, replace `PNG` with any valid 1x1 png; if the broken-font test does not produce `fuente-no-cargada`, print `f.status` for the garbage font and adjust the rule's statuses to whatever a failed face reports, then note it in the report.
 
-- [ ] **Step 7: Write the CLI**
+- [ ] **Step 6: Write the CLI**
 
 Create `scripts/export-stills.mjs`:
 
@@ -688,13 +976,14 @@ Create `scripts/export-stills.mjs`:
 #!/usr/bin/env node
 // Turns the week's Claude Design canvas into one ad.png per event.
 //
-//   node scripts/export-stills.mjs <week> [slug ...] [--html path]
+//   node scripts/export-stills.mjs <week> [slug ...] [--dir path]
 //
-// Reads out/<week>/events.json and the canvas downloaded to out/<week>/imagenes/
-// (index.html unless --html says otherwise), audits every artboard's text against the
-// record, and photographs each [data-slug] element to out/<week>/<slug>/ad.png. With slugs
-// only those are written. Rendering is CPU-bound: run it alone, never next to a Remotion render.
-// Exit 0: done. Exit 1: usage or missing input. Exit 2: the audit found errors, nothing written.
+// Reads out/<week>/events.json and the canvas downloaded to out/<week>/imagenes/ (or --dir),
+// stages it so its /_blob assets resolve, checks that fonts and images really loaded, audits every
+// artboard's text against the record, and photographs each [data-slug] element to
+// out/<week>/<slug>/ad.png. With slugs only those are written. Rendering is CPU-bound: run it
+// alone, never next to a Remotion render.
+// Exit 0: done. Exit 1: usage or missing input. Exit 2: errors were found, nothing written.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -705,7 +994,7 @@ import { exportStills } from './core/export-stills.mjs';
 const { flags, positional } = parseArgs(process.argv.slice(2));
 const [week, ...slugs] = positional;
 if (!week) {
-  console.error('usage: node scripts/export-stills.mjs <week> [slug ...] [--html path]');
+  console.error('usage: node scripts/export-stills.mjs <week> [slug ...] [--dir path]');
   process.exit(1);
 }
 const carpeta = weekDir(week);
@@ -714,9 +1003,9 @@ if (!existsSync(eventsPath)) {
   console.error(`${eventsPath} not found. Run scripts/normalize.mjs first.`);
   process.exit(1);
 }
-const htmlPath = flags.html && flags.html !== true ? resolve(flags.html) : join(carpeta, 'imagenes', 'index.html');
-if (!existsSync(htmlPath)) {
-  console.error(`${htmlPath} not found. Publish the week's canvas and read it back to out/${week}/imagenes/ first.`);
+const dir = flags.dir && flags.dir !== true ? resolve(flags.dir) : join(carpeta, 'imagenes');
+if (!existsSync(dir)) {
+  console.error(`${dir} not found. Publish the week's canvas and read it back to out/${week}/imagenes/ first.`);
   process.exit(1);
 }
 const doc = JSON.parse(readFileSync(eventsPath, 'utf8'));
@@ -729,7 +1018,7 @@ try {
   process.exit(1);
 }
 
-const { errores, avisos, escritos } = await exportStills({ htmlPath, doc, slugs, salida: (slug) => join(carpeta, slug, 'ad.png'), executable });
+const { errores, avisos, escritos } = await exportStills({ dir, doc, slugs, salida: (slug) => join(carpeta, slug, 'ad.png'), executable });
 printIssues({ errores, avisos });
 if (errores.length) {
   console.error(`${errores.length} error(s): nothing was exported. Fix the canvas and run it again.`);
@@ -739,23 +1028,23 @@ for (const p of escritos) console.log(`wrote ${p}`);
 console.log(`${escritos.length} image(s) in ${carpeta}.`);
 ```
 
-- [ ] **Step 8: Smoke-test the CLI's usage errors**
+- [ ] **Step 7: Smoke-test the CLI's usage errors**
 
 Run: `node scripts/export-stills.mjs; echo "exit=$?"`
-Expected: `usage: node scripts/export-stills.mjs <week> [slug ...] [--html path]` and `exit=1`.
+Expected: `usage: node scripts/export-stills.mjs <week> [slug ...] [--dir path]` and `exit=1`.
 
-Run: `node scripts/export-stills.mjs 2026-W40 --html /no/such.html; echo "exit=$?"`
+Run: `node scripts/export-stills.mjs 2026-W40 --dir /no/such/dir; echo "exit=$?"`
 Expected: a `not found` message and `exit=1`.
 
-- [ ] **Step 9: Run the whole suite**
+- [ ] **Step 8: Run the whole suite**
 
 Run: `node --test scripts/test/*.test.mjs`
 Expected: all pass.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add scripts/core/cdp.mjs scripts/core/export-stills.mjs scripts/export-stills.mjs scripts/test/export-stills.test.mjs scripts/test/fixtures/stills-ejemplo.html
+git add scripts/core/cdp.mjs scripts/core/export-stills.mjs scripts/export-stills.mjs scripts/test/export-stills.test.mjs
 git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "feat: export Claude Design artboards to ad.png with the project's Chromium
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
@@ -763,10 +1052,11 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: The Remotion frame stops being `ad.png`
+### Task 5: The Remotion frame stops being `ad.png`
 
 **Files:**
 - Modify: `scripts/render.mjs` (header comment, and the `renderStill` output at `output: join(carpeta, 'ad.png')`)
+- Modify (comments only): `scripts/core/render-plan.mjs` (lines 7 and 13), `video/src/EventAd.tsx` (line 10)
 
 **Interfaces:**
 - Consumes: nothing new.
@@ -800,20 +1090,28 @@ with
       output: join(carpeta, 'fotograma.png'),
 ```
 
-- [ ] **Step 2: Check nothing else reads the old name**
+- [ ] **Step 2: Reword the stale comments**
 
-Run: `grep -rn "ad\.png" scripts video/src --include=*.mjs --include=*.ts --include=*.tsx`
-Expected: only matches in `scripts/export-stills.mjs` and `scripts/core/`/`scripts/test/` files written in Task 3 (no match in `render.mjs`).
+These comments say the Remotion frame is `ad.png`; it is now `fotograma.png`. Change only comment text:
 
-- [ ] **Step 3: Run the suite**
+- `scripts/core/render-plan.mjs` line 7: `const STILL_AT = 0.6; // ad.png is taken this far into the clip, once the animation has settled` becomes `... // fotograma.png is taken this far into the clip, once the animation has settled`.
+- `scripts/core/render-plan.mjs` line 13: `/** The frame to export as ad.png: about 60% in, always inside the clip. */` becomes `/** The frame to export as fotograma.png: about 60% in, always inside the clip. */`.
+- `video/src/EventAd.tsx` line 10: `... exported as ad.png (a still) and clip.mp4 ...` becomes `... exported as fotograma.png (a still) and clip.mp4 ...`.
+
+- [ ] **Step 3: Check nothing else reads the old name**
+
+Run: `grep -rn "ad\.png" scripts video/src`
+Expected: matches only in `scripts/export-stills.mjs` (usage text and output path) and in `scripts/core/`/`scripts/test/` files of Tasks 2 to 4, and none in `render.mjs`, `render-plan.mjs` or `video/src/`. (`.claude/` docs still mention it; Task 7 fixes those.)
+
+- [ ] **Step 4: Run the suite**
 
 Run: `node --test scripts/test/*.test.mjs`
 Expected: all pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/render.mjs
+git add scripts/render.mjs scripts/core/render-plan.mjs video/src/EventAd.tsx
 git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "refactor: render.mjs writes fotograma.png; ad.png comes from the canvas
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
@@ -821,7 +1119,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Palettes and the brief for Claude Design
+### Task 6: Palettes and the brief for Claude Design
 
 **Files:**
 - Create: `brand/paletas-imagen.md`
@@ -886,13 +1184,13 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Rules and flow documents
+### Task 7: Rules and flow documents
 
 **Files:**
-- Modify: `CLAUDE.md`, `PLAN.md`, `README.md`, `.claude/skills/church-ads/SKILL.md`, `brand/corporate-brand.md`
+- Modify: `CLAUDE.md`, `PLAN.md`, `README.md`, `.claude/skills/church-ads/SKILL.md`, `.claude/skills/church-ads/design.md`, `brand/corporate-brand.md`
 
 **Interfaces:**
-- Consumes: the finished scripts of Tasks 2 to 4 and `brand/paletas-imagen.md`.
+- Consumes: the finished scripts of Tasks 2 to 5, `brand/paletas-imagen.md` and the spike's "Spike result" section in the spec.
 - Produces: docs that match the code. Read each file's current text first and edit the passages named below; keep each file's language and tone.
 
 - [ ] **Step 1: `CLAUDE.md`**
@@ -901,7 +1199,7 @@ Make these edits:
 1. Opening paragraph: change "produces, per event, a branded image and a video clip" to say the image comes from Claude Design and the clip from Remotion.
 2. Hard rule 4 ("Subagents never render, or generate an image"): add that the orchestrator, not a subagent, builds the week's Claude Design canvas and exports it with `scripts/export-stills.mjs`, serialized like every render.
 3. Hard rule 5 (`tokens.ts` single source of truth): add that it governs the video and the logo; the event images use the per-kind palettes of `brand/paletas-imagen.md`.
-4. Commands block: add `node scripts/export-stills.mjs 2026-W39 [slug]   # canvas -> out/<week>/<slug>/ad.png` after the `render.mjs` line.
+4. Commands block: add `node scripts/export-stills.mjs 2026-W39 [slug]   # canvas -> out/<week>/<slug>/ad.png` after the `render.mjs` line (the script also accepts `--dir path` for the downloaded canvas).
 5. Conventions: add one bullet saying the event's `ad.png` comes from `out/<week>/imagenes/` via `export-stills.mjs`, and the Remotion frame is `fotograma.png`.
 6. Layout notes that say `ad.png` is a Remotion still: correct them.
 
@@ -911,11 +1209,19 @@ Find the decision row `| Image generation | Design authored as a Remotion compon
 
 - [ ] **Step 3: `.claude/skills/church-ads/SKILL.md`**
 
-1. Step 5: add a paragraph after the designers' fan-out: while they work, build the week's canvas (read `brand/paletas-imagen.md`; `Artifact` quickstart with `design_systems: false`; one private Design artifact `IPUC <semana>`; one artboard per event; read it back to `out/<week>/imagenes/`). Use the file layout recorded in the spec's "Spike result".
-2. Step 7: add `node scripts/export-stills.mjs <week>` after validate, and say an audit error means fixing the canvas and exporting again.
+1. Step 5: add the canvas procedure after the designers' fan-out. While they work, the orchestrator builds the week's canvas, following the spec's "Spike result":
+   - Read `brand/paletas-imagen.md`. Start with `Artifact` quickstart (`intent: "design"`, `design_systems: false`), then publish a private Design artifact `IPUC <semana>` from the type.
+   - Upload the brand assets to that canvas with one `Artifact` publish (`asset: true`, `file_paths`): the dark and light logos and the Montserrat 500, 700 and 800 files. Reference each as the `/_blob/<id>` the result returns, verbatim (the type forbids `data:` URIs and file names).
+   - One artboard per event, `data-slug="<slug>"` on its root element, 1920x1080, the first one in `project/Main.dc.html`.
+   - Read it back to `out/<week>/imagenes/`: `Artifact` `list` with `scope: "files"`, then `read` with `paths` and `out_dir` for `project/canvas.json` and every `project/*.dc.html` (skip `index.html`, `app.js`, `app.css` and the reference pages); then `list` with `scope: "assets"` and `read` with `path` (singular), once per asset, which saves `<id>.<ext>` at the root of `out_dir`. Delete an older `out/<week>/imagenes/` first, so a stale artboard cannot pass for a current one.
+2. Step 7: add `node scripts/export-stills.mjs <week>` after validate, and say an error (audit, a font or image that did not load, a missing asset, a wrong size) means fixing the canvas, reading it back and exporting again; nothing is written meanwhile.
 3. Step 10: say `render.mjs` writes `fotograma.png` and the images come from the export; "look at the stills" now means `ad.png`.
 4. Step 11 (report): list events with no `ad.png` (with `fotograma.png` as a stand-in) and the kind each event took, in plain Spanish.
 5. Layout of a week: replace `<slug>/{ad.png, clip.mp4}` with `<slug>/{ad.png, fotograma.png, clip.mp4}` and add `imagenes/`.
+
+- [ ] **Step 3b: `.claude/skills/church-ads/design.md`**
+
+Line 106 says the still `ad.png` is taken about 60% into the clip. Say `fotograma.png` instead, and that it is only a frame for checking the video, not the event's image.
 
 - [ ] **Step 4: `README.md` (Spanish)**
 
@@ -927,13 +1233,13 @@ Add a short note under its intro: the manual's palette governs the video and the
 
 - [ ] **Step 6: Check the docs against the code**
 
-Run: `grep -n "export-stills\|fotograma\|paletas-imagen" CLAUDE.md PLAN.md README.md .claude/skills/church-ads/SKILL.md brand/corporate-brand.md`
-Expected: each of the five files matches at least one of the three names.
+Run: `grep -n "export-stills\|fotograma\|paletas-imagen" CLAUDE.md PLAN.md README.md .claude/skills/church-ads/SKILL.md .claude/skills/church-ads/design.md brand/corporate-brand.md`
+Expected: each of the six files matches at least one of the three names.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add CLAUDE.md PLAN.md README.md .claude/skills/church-ads/SKILL.md brand/corporate-brand.md
+git add CLAUDE.md PLAN.md README.md .claude/skills/church-ads/SKILL.md .claude/skills/church-ads/design.md brand/corporate-brand.md
 git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m "docs: images come from Claude Design, video stays on Remotion
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
@@ -941,7 +1247,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: End to end on week 2026-W40
+### Task 8: End to end on week 2026-W40
 
 **Files:**
 - Create (git-ignored output): `out/2026-W40/imagenes/` and each `out/2026-W40/<slug>/ad.png`
@@ -950,19 +1256,19 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: everything above, and `out/2026-W40/events.json` (9 events).
 - Produces: nine new `ad.png` and the confirmation that the flow works in a real week.
 
-- [ ] **Step 1: Build the week's canvas**
+- [ ] **Step 1: Clear the spike's leftovers**
 
-Follow the new SKILL step 5 paragraph: read `brand/paletas-imagen.md`, publish a private Design artifact `IPUC semana 28 sep - 4 oct` with nine artboards (one per event of `out/2026-W40/events.json`, `data-slug` = the slug), each on its kind's palette and with its own composition, showing only the allowed facts. For `culto-damas-jovenes` and `ayuno-damas-jovenes` the kind is Damas by the table order and by the title; say so in the report.
+Run: `rm -rf out/2026-W40/imagenes`
+Expected: no output. The spike's download (one stale `bazar-del-libro` artboard) must not pass for a real one.
 
-- [ ] **Step 2: Read the canvas back**
+- [ ] **Step 2: Build the week's canvas**
 
-Read the published files into `out/2026-W40/imagenes/` as the spike recorded.
+Follow the new SKILL step 5 procedure: read `brand/paletas-imagen.md`; quickstart with `design_systems: false`; publish a private Design artifact `IPUC semana 28 sep - 4 oct`; upload the logo and the three Montserrat files with one `asset: true` publish; add nine artboards (one per event of `out/2026-W40/events.json`, `data-slug` = the slug, the first in `Main.dc.html`), each on its kind's palette and with its own composition, showing only the allowed facts. For `culto-damas-jovenes` and `ayuno-damas-jovenes` the kind is Damas by the table order and by the title; say so in the report.
 
-- [ ] **Step 3: Export**
+- [ ] **Step 3: Read the canvas back and export**
 
-Run: `node scripts/export-stills.mjs 2026-W40`
-Expected: `9 image(s) in .../out/2026-W40.`, exit 0. If exit 2, fix the artboards named in the errors in the canvas, read it back and run again.
-
+Read it back to `out/2026-W40/imagenes/` exactly as the SKILL procedure says (files, then each asset), then run: `node scripts/export-stills.mjs 2026-W40`
+Expected: `9 image(s) in .../out/2026-W40.`, exit 0. If exit 2, fix the artboards or assets named in the errors in the canvas, read it back and run again.
 - [ ] **Step 4: Look at every image**
 
 Read each `out/2026-W40/<slug>/ad.png` with the Read tool. Check against `events.json` line by line: every time, date and title. Check contrast, that the logo is unaltered on a flat panel, that no two events share a layout, and that the colors match their kinds.
@@ -981,15 +1287,15 @@ In plain Spanish: where the images are, the color each event took, and the remin
 ## Self-Review
 
 **Spec coverage**
-- Goal, decisions table (scope, colors, assignment, review, path, design system): Task 1 (design system declined, canvas), Task 5 (palettes), Task 6 (docs), Task 7.
-- Architecture flow and the contract (`data-slug`, 1920x1080): Tasks 1, 3, 7; the size is enforced in `exportStills` (`tamano-artboard`).
-- New files table: `brand/paletas-imagen.md` (Task 5), `export-stills.mjs` (Task 3), `still-source.mjs` (Task 2), tests (Tasks 2 and 3). One deliberate change from the spec: the audit runs inside `export-stills.mjs` instead of `validate.mjs`, because reading an artboard's visible text needs the browser. `validate.mjs` is unchanged; the audit still blocks the export.
-- Audit rules `token-ajeno`, `nombre-en-texto`, `artboard-faltante`, `artboard-sobrante`, `artboard-duplicado`: Task 2, each with a test.
-- Docs and rules that change: Task 6 lists all five files.
-- Failure modes: a canvas that cannot be read leaves no `ad.png` and the report says so (Task 6, SKILL step 11); an audit error writes nothing (Task 3 test); one event without `ad.png` is reported (SKILL step 11).
-- Testing section: Tasks 2 and 3; visual check Task 7.
-- Spike with go/no-go and fallback: Task 1.
+- Goal and decisions table (scope, colors, assignment, review, path, design system): Task 1 (canvas, design system declined), Task 6 (palettes), Task 7 (docs), Task 8.
+- Architecture flow and the contract (`data-slug`, 1920x1080): Tasks 1, 3, 4, 8. The size is enforced in `exportStills` (`tamano-artboard`).
+- New files table: `brand/paletas-imagen.md` (Task 6), `export-stills.mjs` (Task 4), `still-source.mjs` (Task 2), tests (Tasks 2 to 4). Two deliberate changes from the spec: the audit runs inside `export-stills.mjs` instead of `validate.mjs` (reading an artboard's visible text needs the browser; `validate.mjs` is unchanged and the audit still blocks the export), and a staging step (`stage-canvas.mjs`, Task 3) resolves the `/_blob` assets that the spike found the download does not carry, as its "Spike result" records.
+- Audit rules `token-ajeno`, `nombre-en-texto`, `artboard-faltante`, `artboard-sobrante`, `artboard-duplicado`: Task 2, each with a test. The exporter adds `fuente-no-cargada`, `imagen-rota`, `tamano-artboard` (Task 4) and the stager `asset-faltante`, `sin-artboards` (Task 3), each with a test.
+- Docs and rules that change: Task 7 lists all six files.
+- Failure modes: a canvas that cannot be read leaves no `ad.png` and the report says so (Task 7, SKILL step 11); an audit or load error writes nothing (Task 4 tests); one event without `ad.png` is reported (SKILL step 11).
+- Testing section: Tasks 2 to 4; visual check Task 8.
+- Spike with go/no-go and fallback: Task 1 (done: GO).
 
-**Placeholder scan:** no "TBD"/"TODO". Task 6 gives the passages to edit rather than full replacement text because the exact current wording of five documents must be read first; each edit states the content to add. Task 1 and Task 7 depend on the artifact layout the spike records, stated as a dependency.
+**Placeholder scan:** no "TBD"/"TODO". Task 7 gives the passages to edit rather than full replacement text because the exact current wording of six documents must be read first; each edit states the content to add. Task 4 tells the implementer what to adjust if the tiny PNG or the broken-font status differs in the real browser.
 
-**Type consistency:** `checkStillText(tableros, doc)` returns `{errores, avisos}` (Task 2) and is consumed with `.map(({slug, text}) => ...)` in `exportStills` (Task 3). `exportStills` returns `{errores, avisos, escritos}` and the CLI destructures the same names. `salida(slug)`, `slugs`, `executable`, `htmlPath` are used identically in the core, the tests and the CLI. `resolveBrowser()` and `openPage(executable)` signatures match their uses.
+**Type consistency:** `checkStillText(tableros, doc)` returns `{errores, avisos}` (Task 2) and is consumed with `.map(({slug, text}) => ...)` in `exportStills` (Task 4). `stageCanvas(dir, staging)` returns `{paginas: [{archivo, ruta}], problemas: [{regla, mensaje}]}` (Task 3) and `exportStills` uses those names. `exportStills` returns `{errores, avisos, escritos}` and the CLI destructures the same names. `salida(slug)`, `slugs`, `executable`, `dir` are used identically in the core, the tests and the CLI. `resolveBrowser()` and `openPage(executable)` signatures match their uses.

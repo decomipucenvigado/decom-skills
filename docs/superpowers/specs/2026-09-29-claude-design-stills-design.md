@@ -1,6 +1,6 @@
 # Event images from Claude Design
 
-Status: design approved in chat on 2026-09-29. Not yet planned or implemented.
+Status: design approved in chat on 2026-09-29. Planned in `docs/superpowers/plans/2026-09-29-claude-design-stills.md`; the spike passed (see "Spike result"), implementation in progress.
 
 ## Goal
 
@@ -54,10 +54,9 @@ keeps `CLAUDE.md` rule 4 (nothing renders in parallel).
 ### Contract between the canvas and the exporter
 
 - One element per event with `data-slug="<slug>"`, exactly 1920x1080.
-- Assets (logo, fonts) are reachable from the downloaded HTML by relative path, or embedded.
-- The exact layout of the downloaded artifact (a single HTML file or a folder) is fixed by
-  the spike, because it is not known until one canvas has been published and read back.
-  The two bullets above are the fixed part.
+- Assets (logo, fonts) are uploaded to the canvas and referenced as `/_blob/<id>`; the download saves them apart, so the exporter stages them itself (amended by the "Spike result" below: they are not reachable by relative path or embedded).
+- The layout of the downloaded artifact was fixed by the spike (`project/*.dc.html`, one file per
+  artboard, plus assets as `<id>.<ext>` at the root); see "Spike result".
 
 ### New files
 
@@ -217,7 +216,7 @@ and the shape of `canvas.json`; the spike had one board and did not exercise it.
 
 ### What Task 3 (exporter) must know
 
-1. Open the `project/**/*.dc.html` files (skip `project/ds/`), never `index.html`. Query
+1. Open the `project/**/*.dc.html` files (skip `project/ds/`, which the type writes only when a design system is installed), never `index.html`. Query
    `[data-slug]` in each and screenshot every match; do not derive the slug from the file name:
    the type wants the first artboard called `Main.dc.html`.
 2. Resolve `/_blob/<id>`. Both ways below were run and gave byte-identical PNGs:
