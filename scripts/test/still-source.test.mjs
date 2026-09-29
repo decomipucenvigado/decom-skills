@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { checkStillText } from '../core/still-source.mjs';
 
 const IGLESIA = { nombre: 'Iglesia Ejemplo', lugarPorDefecto: 'Templo', llamadoAccion: 'Te esperamos' };
-const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: 'Jóvenes', fechaTexto: 'viernes 3 de octubre', horaTexto: '7:00 p. m.', lugar: 'Templo' };
-const RETIRO = { slug: 'retiro-familias', titulo: 'Retiro de familias', ministerio: null, fechaTexto: 'sábado 4 de octubre', horaTexto: null, lugar: 'Salón Principal' };
+const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: 'Jóvenes', fechaTexto: 'viernes 3 de octubre', hora: '19:00', horaTexto: '7:00 p. m.', lugar: 'Templo' };
+const RETIRO = { slug: 'retiro-familias', titulo: 'Retiro de familias', ministerio: null, fechaTexto: 'sábado 4 de octubre', hora: null, horaTexto: null, lugar: 'Salón Principal' };
 const DOC = { iglesia: IGLESIA, events: [CULTO, RETIRO] };
 
 const BUENO = [
@@ -18,15 +18,15 @@ test('artboards that show only the record pass, whatever their case, accents or 
   assert.deepEqual(reglas([{ slug: 'culto-jovenes', text: 'culto de jovenes viernes 3 de octubre 7:00 p. m.' }, BUENO[1]]), []);
 });
 
-test('an invented time is an error that names the token', () => {
+test('an invented time is one hora-ajena error that names it', () => {
   const r = checkStillText([{ ...BUENO[0], text: `${BUENO[0].text}\n8:30 p. m.` }, BUENO[1]], DOC);
-  assert.deepEqual(r.errores.map((e) => e.regla), ['token-ajeno']);
+  assert.deepEqual(r.errores.map((e) => e.regla), ['hora-ajena']);
   assert.equal(r.errores[0].slug, 'culto-jovenes');
-  assert.match(r.errores[0].mensaje, /"8"/);
+  assert.match(r.errores[0].mensaje, /8:30/);
 });
 
 test('a time on an event that has none is an error', () => {
-  assert.deepEqual(reglas([BUENO[0], { ...BUENO[1], text: `${BUENO[1].text}\n7:00 p. m.` }]), ['token-ajeno']);
+  assert.deepEqual(reglas([BUENO[0], { ...BUENO[1], text: `${BUENO[1].text}\n7:00 p. m.` }]), ['hora-ajena']);
 });
 
 test('invented copy is an error', () => {
@@ -58,4 +58,45 @@ test('findings carry the slug, and a clean week has no notices', () => {
   const r = checkStillText([BUENO[0]], DOC);
   assert.equal(r.errores[0].slug, 'retiro-familias');
   assert.deepEqual(r.avisos, []);
+});
+
+test('a time rebuilt from digits of the date is an error', () => {
+  const r = [{ ...BUENO[0], text: 'JÓVENES\nCULTO DE JÓVENES\nViernes 3 de octubre\n3:00 p. m.\nTe esperamos' }, BUENO[1]];
+  assert.deepEqual(reglas(r), ['hora-ajena']);
+});
+
+test('the minutes must match too', () => {
+  const r = [{ ...BUENO[0], text: 'JÓVENES\nCULTO DE JÓVENES\nViernes 3 de octubre\n7:30 p. m.\nTe esperamos' }, BUENO[1]];
+  assert.deepEqual(reglas(r), ['hora-ajena']);
+});
+
+test('the same time written "7 p. m." is accepted', () => {
+  const r = [{ ...BUENO[0], text: 'JÓVENES\nCULTO DE JÓVENES\nViernes 3 de octubre\n7 p. m.\nTe esperamos' }, BUENO[1]];
+  assert.deepEqual(reglas(r), []);
+});
+
+test('a date rebuilt from digits of the time is an error', () => {
+  const r = [{ ...BUENO[0], text: 'JÓVENES\nCULTO DE JÓVENES\nViernes 7 de octubre\n7:00 p. m.\nTe esperamos' }, BUENO[1]];
+  assert.deepEqual(reglas(r), ['fecha-ajena']);
+});
+
+test('another weekday is an error', () => {
+  const r = [{ ...BUENO[0], text: 'JÓVENES\nCULTO DE JÓVENES\nSábado 3 de octubre\n7:00 p. m.\nTe esperamos' }, BUENO[1]];
+  assert.deepEqual(reglas(r), ['dia-ajeno']);
+});
+
+test('the church name typed twice is still one error', () => {
+  const r = checkStillText([{ ...BUENO[0], text: `${BUENO[0].text}\nIGLESIA EJEMPLO\nIglesia Ejemplo` }, BUENO[1]], DOC);
+  assert.deepEqual(r.errores.map((e) => e.regla), ['nombre-en-texto']);
+});
+
+test('an artboard with no visible text is an error, not a silent pass', () => {
+  assert.deepEqual(reglas([{ slug: 'culto-jovenes', text: '   \n ' }, BUENO[1]]), ['artboard-vacio']);
+});
+
+test('an event with no place passes, and the default place is matched ignoring case and accents', () => {
+  const sinLugar = { ...DOC, events: [CULTO, { ...RETIRO, lugar: null }] };
+  assert.deepEqual(reglas(BUENO.map((b) => (b.slug === 'retiro-familias' ? { ...b, text: 'Retiro de familias\nSábado 4 de octubre' } : b)), sinLugar), []);
+  const mayusculas = { ...DOC, events: [{ ...CULTO, lugar: 'TEMPLO' }, RETIRO] };
+  assert.deepEqual(reglas([{ ...BUENO[0], text: `${BUENO[0].text}\nTemplo` }, BUENO[1]], mayusculas), ['token-ajeno']);
 });

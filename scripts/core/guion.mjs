@@ -9,8 +9,8 @@ const escapar = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const HORAS = 'una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce';
 const HORA_HABLADA = new RegExp(`\\b(?:las|la)\\s+(${HORAS})\\b`, 'g');
-const RELOJ = /(?<![\d:])(\d{1,2})\s*:\s*(\d{2})(?![\d:])\s*(?:([ap])\.?\s?m\.?)?/g;
-const HORA_MERIDIANO = /(?<![\d:])(\d{1,2})\s*([ap])\.?\s?m\.?(?![a-z\d])/g;
+export const RELOJ = /(?<![\d:])(\d{1,2})\s*:\s*(\d{2})(?![\d:])\s*(?:([ap])\.?\s?m\.?)?/g;
+export const HORA_MERIDIANO = /(?<![\d:])(\d{1,2})\s*([ap])\.?\s?m\.?(?![a-z\d])/g;
 const DIAS = /\b(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)\b/g;
 const PERIODO_DICHO = /^[^.!?]*?\b(?:de la (manana|tarde|noche|madrugada)|del (mediodia))/;
 
