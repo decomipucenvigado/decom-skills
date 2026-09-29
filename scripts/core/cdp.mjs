@@ -1,6 +1,9 @@
 // A tiny page driver over the Chrome DevTools protocol, using only Node built-ins
 // (child_process and the global WebSocket) and the headless Chromium Remotion already
 // downloaded for the video, so exporting an image adds no dependency and downloads nothing.
+//
+// It never waits forever: every command and every page load has a time limit, and a browser that
+// dies or cannot start rejects with an error the caller can catch, so cleanup always runs.
 
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -30,18 +33,47 @@ export async function resolveBrowser() {
   throw new Error('no headless Chromium found: render a week once so Remotion downloads it, or set REMOTION_BROWSER_EXECUTABLE to a chrome-headless-shell path');
 }
 
-/** Launches the browser and returns a driver for one 1920x1080 page. Call `close()` when done. */
-export async function openPage(executable) {
+/**
+ * The launch flags. On Linux the sandbox is turned off, as Remotion's own launcher does: as root or
+ * in a container chrome-headless-shell refuses to start without it, and this driver only opens local
+ * files it staged itself.
+ */
+export function argumentosNavegador(perfil, plataforma = process.platform) {
+  return [
+    '--headless',
+    '--remote-debugging-port=0',
+    `--user-data-dir=${perfil}`,
+    '--hide-scrollbars',
+    '--force-color-profile=srgb',
+    '--no-first-run',
+    ...(plataforma === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+    'about:blank',
+  ];
+}
+
+/**
+ * Launches the browser and returns a driver for one 1920x1080 page. Call `close()` when done.
+ * `espera` is how long, in milliseconds, one command or one page load may take before it rejects.
+ */
+export async function openPage(executable, { espera = 30000 } = {}) {
+  const segundos = espera / 1000;
   const perfil = mkdtempSync(join(tmpdir(), 'cdp-profile-'));
-  const proc = spawn(
-    executable,
-    ['--headless', '--remote-debugging-port=0', `--user-data-dir=${perfil}`, '--hide-scrollbars', '--force-color-profile=srgb', '--no-first-run', 'about:blank'],
-    { stdio: ['ignore', 'ignore', 'pipe'] },
-  );
-  const terminado = new Promise((res) => proc.once('exit', res));
+  let proc;
+  try {
+    proc = spawn(executable, argumentosNavegador(perfil), { stdio: ['ignore', 'ignore', 'pipe'] });
+  } catch (err) {
+    rmSync(perfil, { recursive: true, force: true });
+    throw new Error(`could not start the browser ${executable}: ${err.message}`);
+  }
+  // Resolves on `exit`, or on `error` (a spawn failure has no `exit`), so waiting for it can never hang.
+  // The `error` listener also stays attached for good: without one, a late error would crash Node.
+  const terminado = new Promise((res) => {
+    proc.on('exit', res);
+    proc.on('error', res);
+  });
   // Kills the browser and only then removes its profile: while it shuts down it is still writing there.
   const cerrar = async () => {
-    if (proc.exitCode === null && proc.signalCode === null) {
+    if (proc.pid && proc.exitCode === null && proc.signalCode === null) {
       proc.kill();
       let plazo;
       const salio = await Promise.race([terminado.then(() => true), new Promise((res) => (plazo = setTimeout(() => res(false), 5000)))]);
@@ -64,6 +96,7 @@ export async function openPage(executable) {
         if (m) res(m[1]);
       });
       proc.on('exit', () => rej(new Error(`the browser exited: ${buf.trim()}`)));
+      proc.on('error', (err) => rej(new Error(`could not start the browser ${executable}: ${err.message}`)));
       plazo = setTimeout(() => rej(new Error(`the browser did not start in time: ${buf.trim()}`)), 15000);
     }).finally(() => clearTimeout(plazo));
     ws = new WebSocket(wsUrl);
@@ -79,6 +112,15 @@ export async function openPage(executable) {
   let id = 0;
   const pendientes = new Map();
   const oyentes = [];
+  let caida = null; // the error every command gets once the connection is gone
+  const caer = () => {
+    caida ??= new Error('the browser closed the connection');
+    for (const { rej } of pendientes.values()) rej(caida);
+    pendientes.clear();
+  };
+  ws.addEventListener('close', caer);
+  ws.addEventListener('error', caer);
+  terminado.then(caer);
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.id && pendientes.has(m.id)) {
@@ -92,9 +134,28 @@ export async function openPage(executable) {
   });
   const enviar = (method, params = {}, sessionId) =>
     new Promise((res, rej) => {
+      if (caida) return rej(caida);
       const i = ++id;
-      pendientes.set(i, { res, rej });
-      ws.send(JSON.stringify({ id: i, method, params, sessionId }));
+      const plazo = setTimeout(() => {
+        pendientes.delete(i);
+        rej(new Error(`the browser did not answer ${method} within ${segundos} s`));
+      }, espera);
+      pendientes.set(i, {
+        res: (valor) => {
+          clearTimeout(plazo);
+          res(valor);
+        },
+        rej: (error) => {
+          clearTimeout(plazo);
+          rej(error);
+        },
+      });
+      try {
+        ws.send(JSON.stringify({ id: i, method, params, sessionId }));
+      } catch (err) {
+        pendientes.get(i)?.rej(err);
+        pendientes.delete(i);
+      }
     });
 
   try {
@@ -106,17 +167,25 @@ export async function openPage(executable) {
 
     return {
       async navigate(url) {
-        const cargada = new Promise((res) => {
-          const oyente = (m) => {
-            if (m.method === 'Page.loadEventFired') {
-              oyentes.splice(oyentes.indexOf(oyente), 1);
-              res();
-            }
+        let oyente;
+        let plazo;
+        const cargada = new Promise((res, rej) => {
+          oyente = (m) => {
+            if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res();
           };
           oyentes.push(oyente);
+          plazo = setTimeout(() => rej(new Error(`the page did not finish loading within ${segundos} s: ${url}`)), espera);
         });
-        await cmd('Page.navigate', { url });
-        await cargada;
+        cargada.catch(() => {}); // it may reject while `Page.navigate` is still awaited: never leave it unhandled
+        try {
+          const r = await cmd('Page.navigate', { url });
+          if (r.errorText) throw new Error(`could not load ${url}: ${r.errorText}`);
+          await cargada;
+        } finally {
+          clearTimeout(plazo);
+          const donde = oyentes.indexOf(oyente);
+          if (donde !== -1) oyentes.splice(donde, 1);
+        }
       },
       async evaluate(expression) {
         const r = await cmd('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportStills } from '../core/export-stills.mjs';
-import { resolveBrowser } from '../core/cdp.mjs';
+import { argumentosNavegador, openPage, resolveBrowser } from '../core/cdp.mjs';
 
 const IGLESIA = { nombre: 'Iglesia Ejemplo', lugarPorDefecto: 'Templo', llamadoAccion: null };
 const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: null, fechaTexto: 'viernes 3 de octubre', hora: '19:00', horaTexto: '7:00 p. m.', lugar: null };
@@ -19,8 +20,9 @@ const FUENTE = 'b'.repeat(32);
 let executable = null;
 try {
   executable = await resolveBrowser();
-} catch {
-  // no browser here: the tests that need one are skipped
+} catch (err) {
+  // no browser here: the tests that need one are skipped. Any other failure is a driver bug and must show.
+  if (!err.message.includes('no headless Chromium found')) throw err;
 }
 const sinNavegador = executable ? false : 'no headless browser available (set REMOTION_BROWSER_EXECUTABLE)';
 
@@ -49,6 +51,8 @@ const pngSize = (path) => {
   return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
 };
 const reglas = (r) => r.errores.map((e) => e.regla);
+/** How many of the exporter's own temp folders (staging copies, browser profiles) are in the OS temp dir. */
+const residuos = () => readdirSync(tmpdir()).filter((n) => n.startsWith('canvas-staging-') || n.startsWith('cdp-profile-')).length;
 
 test('two artboards in one file become 1920x1080 pngs, even the one below the fold', { skip: sinNavegador }, async () => {
   await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
@@ -56,6 +60,8 @@ test('two artboards in one file become 1920x1080 pngs, even the one below the fo
     assert.deepEqual(r.errores, []);
     assert.deepEqual(r.escritos.map((p) => p.split('/').pop()).sort(), ['culto-jovenes.png', 'retiro-familias.png']);
     for (const p of r.escritos) assert.deepEqual(pngSize(p), { width: 1920, height: 1080 });
+    // the two artboards hold different text: identical pixels would mean the clip missed one of them
+    assert.notEqual(Buffer.compare(readFileSync(r.escritos[0]), readFileSync(r.escritos[1])), 0);
   });
 });
 
@@ -118,6 +124,71 @@ test('a font that fails to load is an error, not a silent fallback font', { skip
     assert.deepEqual(reglas(r), ['fuente-no-cargada']);
     assert.deepEqual(r.escritos, []);
   });
+});
+
+test('a requested slug that names no artboard is an error, not a silent no-op', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
+    const r = await exportStills({ dir, doc: DOC, slugs: ['culto-jovnes'], salida, executable });
+    assert.deepEqual(reglas(r), ['slug-desconocido']);
+    assert.deepEqual(r.escritos, []);
+    assert.equal(existsSync(salida('culto-jovenes')), false);
+  });
+});
+
+test('an error path leaves no staging or profile folder behind', { skip: sinNavegador }, async () => {
+  await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
+    const antes = residuos();
+    const doc = { ...DOC, events: [{ ...CULTO, hora: '20:00', horaTexto: '8:00 p. m.' }, RETIRO] };
+    const r = await exportStills({ dir, doc, salida, executable });
+    assert.deepEqual(reglas(r), ['hora-ajena']);
+    assert.equal(residuos(), antes);
+  });
+});
+
+test('a stalled page fails fast, closes the browser and leaves no folder behind', { skip: sinNavegador }, async () => {
+  // a server that accepts connections and never answers: the image never finishes loading
+  const sockets = new Set();
+  const servidor = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on('error', () => {});
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise((res) => servidor.listen(0, '127.0.0.1', res));
+  const { port } = servidor.address();
+  try {
+    const cuerpo = culto(`<img src="http://127.0.0.1:${port}/x.png" width="10" height="10">`) + retiro;
+    await conCanvas({ 'Main.dc.html': pagina(cuerpo) }, {}, async (dir, salida) => {
+      const antes = residuos();
+      const inicio = Date.now();
+      await assert.rejects(() => exportStills({ dir, doc: DOC, salida, executable, espera: 1500 }), /did not finish loading/);
+      assert.ok(Date.now() - inicio < 15000, 'it must give up long before the default timeout');
+      assert.equal(residuos(), antes);
+    });
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    servidor.close();
+  }
+});
+
+test('a browser that cannot be started rejects and leaves no profile folder behind', async () => {
+  const carpeta = mkdtempSync(join(tmpdir(), 'no-exec-'));
+  try {
+    const falso = join(carpeta, 'browser');
+    writeFileSync(falso, '#!/bin/sh\nexit 0\n', { mode: 0o644 }); // no execute bit
+    const antes = residuos();
+    await assert.rejects(() => openPage(falso));
+    assert.equal(residuos(), antes);
+  } finally {
+    rmSync(carpeta, { recursive: true, force: true });
+  }
+});
+
+test('the sandbox is turned off on Linux only, and the profile folder is always passed', () => {
+  const linux = argumentosNavegador('/perfil', 'linux');
+  assert.ok(linux.includes('--no-sandbox') && linux.includes('--disable-setuid-sandbox'));
+  const mac = argumentosNavegador('/perfil', 'darwin');
+  assert.equal(mac.includes('--no-sandbox') || mac.includes('--disable-setuid-sandbox'), false);
+  for (const banderas of [linux, mac]) assert.ok(banderas.includes('--user-data-dir=/perfil') && banderas.includes('--headless'));
 });
 
 test('a /_blob reference with no downloaded asset stops before any browser is opened', async () => {

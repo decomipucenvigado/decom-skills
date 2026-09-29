@@ -43,7 +43,15 @@ try {
   process.exit(1);
 }
 
-const { errores, avisos, escritos } = await exportStills({ dir, doc, slugs, salida: (slug) => join(carpeta, slug, 'ad.png'), executable });
+let resultado;
+try {
+  resultado = await exportStills({ dir, doc, slugs, salida: (slug) => join(carpeta, slug, 'ad.png'), executable });
+} catch (err) {
+  // the browser could not start, died, or stalled: say so plainly instead of dumping a stack
+  console.error(err.message);
+  process.exit(1);
+}
+const { errores, avisos, escritos } = resultado;
 printIssues({ errores, avisos });
 if (errores.length) {
   console.error(`${errores.length} error(s): nothing was exported. Fix the canvas and run it again.`);

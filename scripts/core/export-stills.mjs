@@ -27,10 +27,11 @@ const LEER = `(async () => {
 })()`;
 
 /**
- * @param {{dir: string, doc: object, salida: (slug: string) => string, slugs?: string[], executable: string}} opciones
+ * `espera` (milliseconds) bounds each browser command and page load; it defaults to the driver's.
+ * @param {{dir: string, doc: object, salida: (slug: string) => string, slugs?: string[], executable: string, espera?: number}} opciones
  * @returns {Promise<{errores: object[], avisos: object[], escritos: string[]}>}
  */
-export async function exportStills({ dir, doc, salida, slugs = [], executable }) {
+export async function exportStills({ dir, doc, salida, slugs = [], executable, espera }) {
   const staging = mkdtempSync(join(tmpdir(), 'canvas-staging-'));
   let pagina = null;
   try {
@@ -39,7 +40,7 @@ export async function exportStills({ dir, doc, salida, slugs = [], executable })
     const avisos = [];
     if (errores.length) return { errores, avisos, escritos: [] };
 
-    pagina = await openPage(executable);
+    pagina = await openPage(executable, { espera });
     const leidas = [];
     for (const p of paginas) {
       await pagina.navigate(pathToFileURL(p.ruta).href);
@@ -67,9 +68,15 @@ export async function exportStills({ dir, doc, salida, slugs = [], executable })
         errores.push({ regla: 'tamano-artboard', slug: t.slug, mensaje: `the artboard is ${t.width}x${t.height}, it must be exactly ${ANCHO}x${ALTO}` });
       }
     }
+    const conocidos = new Set(todos.map((t) => t.slug));
+    for (const slug of slugs) {
+      if (!conocidos.has(slug)) errores.push({ regla: 'slug-desconocido', slug, mensaje: 'no artboard has this slug' });
+    }
     if (errores.length) return { errores, avisos, escritos: [] };
 
-    const escritos = [];
+    // Everything is photographed into memory first and only then written, so a failure while
+    // photographing artboard N leaves no partial output behind.
+    const fotos = [];
     for (const p of leidas) {
       const elegidos = p.tableros.filter((t) => !slugs.length || slugs.includes(t.slug));
       if (!elegidos.length) continue;
@@ -77,11 +84,22 @@ export async function exportStills({ dir, doc, salida, slugs = [], executable })
       await pagina.evaluate('document.fonts.ready.then(() => true)');
       for (const t of elegidos) {
         const png = await pagina.screenshot(t);
-        const destino = salida(t.slug);
-        mkdirSync(dirname(destino), { recursive: true });
-        writeFileSync(destino, png);
-        escritos.push(destino);
+        const ancho = png.readUInt32BE(16);
+        const alto = png.readUInt32BE(20);
+        if (ancho !== ANCHO || alto !== ALTO) {
+          errores.push({ regla: 'tamano-artboard', slug: t.slug, mensaje: `the photo is ${ancho}x${alto}, it must be exactly ${ANCHO}x${ALTO}` });
+        } else {
+          fotos.push({ destino: salida(t.slug), png });
+        }
       }
+    }
+    if (errores.length) return { errores, avisos, escritos: [] };
+
+    const escritos = [];
+    for (const { destino, png } of fotos) {
+      mkdirSync(dirname(destino), { recursive: true });
+      writeFileSync(destino, png);
+      escritos.push(destino);
     }
     return { errores, avisos, escritos };
   } finally {
