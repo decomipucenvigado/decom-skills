@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Renders a week: per event an ad.png and a clip.mp4, then the combined semana.mp4.
+// Renders a week: per event a clip.mp4 and a fotograma.png (a frame of the clip, only to
+// check the video; the event's image is ad.png, exported from the Claude Design canvas by
+// scripts/export-stills.mjs), then the combined semana.mp4.
 //
 //   node scripts/render.mjs <week> [slug ...]
 //
@@ -113,7 +115,7 @@ for (const props of items) {
       ...comun,
       composition,
       inputProps: props,
-      output: join(carpeta, 'ad.png'),
+      output: join(carpeta, 'fotograma.png'),
       frame: stillFrame(composition.durationInFrames),
       imageFormat: 'png',
     });

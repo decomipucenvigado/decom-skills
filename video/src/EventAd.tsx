@@ -7,7 +7,7 @@ import {IglesiaProvider} from './church';
 import {sceneFrames, voiceSeconds} from './timing';
 import type {EventAdProps} from './types';
 
-/** Single-event composition: exported as ad.png (a still) and clip.mp4. It plays its own slice of the week's narration. */
+/** Single-event composition: exported as fotograma.png (a still) and clip.mp4. It plays its own slice of the week's narration. */
 export const EventAd: React.FC<EventAdProps> = ({slug, event, iglesia, voz}) => {
   const {fps} = useVideoConfig();
   return (
