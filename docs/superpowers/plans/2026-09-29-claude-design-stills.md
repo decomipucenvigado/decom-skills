@@ -587,8 +587,8 @@ import { exportStills } from '../core/export-stills.mjs';
 import { resolveBrowser } from '../core/cdp.mjs';
 
 const IGLESIA = { nombre: 'Iglesia Ejemplo', lugarPorDefecto: 'Templo', llamadoAccion: null };
-const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: null, fechaTexto: 'viernes 3 de octubre', horaTexto: '7:00 p. m.', lugar: null };
-const RETIRO = { slug: 'retiro-familias', titulo: 'Retiro de familias', ministerio: null, fechaTexto: 'sábado 4 de octubre', horaTexto: null, lugar: null };
+const CULTO = { slug: 'culto-jovenes', titulo: 'Culto de jóvenes', ministerio: null, fechaTexto: 'viernes 3 de octubre', hora: '19:00', horaTexto: '7:00 p. m.', lugar: null };
+const RETIRO = { slug: 'retiro-familias', titulo: 'Retiro de familias', ministerio: null, fechaTexto: 'sábado 4 de octubre', hora: null, horaTexto: null, lugar: null };
 const DOC = { iglesia: IGLESIA, events: [CULTO, RETIRO] };
 
 // A valid 1x1 png. If the browser reports naturalWidth 0 for it, swap in any valid 1x1 png.
@@ -666,9 +666,9 @@ test('an image that loads through /_blob passes', { skip: sinNavegador }, async 
 
 test('an audit error writes nothing', { skip: sinNavegador }, async () => {
   await conCanvas({ 'Main.dc.html': pagina(culto() + retiro) }, {}, async (dir, salida) => {
-    const doc = { ...DOC, events: [{ ...CULTO, horaTexto: '8:00 p. m.' }, RETIRO] };
+    const doc = { ...DOC, events: [{ ...CULTO, hora: '20:00', horaTexto: '8:00 p. m.' }, RETIRO] };
     const r = await exportStills({ dir, doc, salida, executable });
-    assert.deepEqual(reglas(r), ['token-ajeno']);
+    assert.deepEqual(reglas(r), ['hora-ajena']);
     assert.deepEqual(r.escritos, []);
     assert.equal(existsSync(salida('culto-jovenes')), false);
   });

@@ -100,6 +100,12 @@ has a time), `lugar` (only if it differs from `iglesia.lugarPorDefecto`) and
 - `token-ajeno`: a visible token that is not in the allowed strings. This covers invented
   times, dates, places and copy, and digits in particular.
 - `nombre-en-texto`: `iglesia.nombre` typed on the artboard.
+- `hora-ajena`: a clock time that is not the event's `hora` (checked as a unit, the way the
+  narration audit does, because a bag of tokens cannot tell "7:00" from "3:00" when both digits
+  are in the record); any clock time on an event with no time.
+- `fecha-ajena` and `dia-ajeno`: an "N de mes" or a weekday that is not in the event's
+  `fechaTexto` or `titulo`.
+- `artboard-vacio`: an artboard with no visible text (an empty read must not pass silently).
 - `artboard-faltante`: an event without an artboard.
 - `artboard-sobrante`: an artboard whose slug is not an event.
 - `artboard-duplicado`: two artboards with one slug.
