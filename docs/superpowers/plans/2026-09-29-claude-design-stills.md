@@ -1269,6 +1269,10 @@ Follow the new SKILL step 5 procedure: read `brand/paletas-imagen.md`; quickstar
 
 Read it back to `out/2026-W40/imagenes/` exactly as the SKILL procedure says (files, then each asset), then run: `node scripts/export-stills.mjs 2026-W40`
 Expected: `9 image(s) in .../out/2026-W40.`, exit 0. If exit 2, fix the artboards or assets named in the errors in the canvas, read it back and run again.
+- [ ] **Step 3b: Record the write side in the spec**
+
+The spike documented only how to read a canvas back. Append to the spec's "Spike result" section a subsection `### Write side (from Task 8)` with what actually worked in Step 2: the order of calls (assets uploaded first to get the `/_blob` ids, then `project/canvas.json` and each `project/*.dc.html`), whether the `assets` capability or any skill had to be loaded for `asset: true` uploads, and a minimal working artboard skeleton (the `<x-dc>` wrapper, the font-face rules for the three Montserrat weights, the root element with `data-slug`). Keep it short and factual; a later week is built from it. Commit only the spec: `git add docs/superpowers/specs/2026-09-29-claude-design-stills-design.md` with a message ending in the `Co-Authored-By` line.
+
 - [ ] **Step 4: Look at every image**
 
 Read each `out/2026-W40/<slug>/ad.png` with the Read tool. Check against `events.json` line by line: every time, date and title. Check contrast, that the logo is unaltered on a flat panel, that no two events share a layout, and that the colors match their kinds.
