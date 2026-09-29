@@ -2,9 +2,9 @@
 
 Generator of weekly advertisement videos for the IPUC (Iglesia Pentecostal Unida
 de Colombia) congregations; today, IPUC Envigado Central. Reads a week of events
-from Google Calendar and produces, per event, a branded image and a video clip,
-plus one Spanish narration for the whole week — then edits them into one weekly
-video.
+from Google Calendar and produces, per event, a branded image (designed in a
+Claude Design canvas) and a video clip (Remotion), plus one Spanish narration for
+the whole week — then edits the clips and the narration into one weekly video.
 
 **Scope: the IPUC organization only.** Every congregation shares the
 organization's identity (colors, logo, fonts), so the brand lives in code on
@@ -45,10 +45,15 @@ verified feasibility findings.
    orchestrator writes the week's narration, voices it once and renders —
    rendering is CPU-bound and must be serialized — and, only when the person
    asks for it, regenerates the week's cached motif images as one batch, not
-   per event (`.claude/skills/church-ads/creative-ads.md` § 6).
+   per event (`.claude/skills/church-ads/creative-ads.md` § 6). The event images
+   follow the same split: the orchestrator, not a subagent, builds the week's
+   Claude Design canvas and exports it with `scripts/export-stills.mjs`,
+   serialized like every render.
 5. **`video/src/brand/tokens.ts` is the single source of truth** for colors,
    spacing and type scale. No hardcoded hex values in ad components. It holds
-   the IPUC's identity, in code by design (see Scope).
+   the IPUC's identity, in code by design (see Scope). It governs the video and
+   the logo; the event images (`ad.png`) use the per-kind palettes of
+   `brand/paletas-imagen.md` instead.
 6. **Church facts are reference data, never code.** Name, address, default
    place, ministries, call to action, blessing (`Despedida`) and recurring
    services come from
@@ -70,7 +75,8 @@ node scripts/normalize.mjs --week 2026-W39    # raw calendar -> out/<week>/event
 node scripts/validate.mjs 2026-W39 [slug] [--narracion]   # audit events.json, each ad, the week's guion.md
 node scripts/gen-registry.mjs                 # rebuild video/src/ads/registry.gen.ts
 node scripts/tts.mjs --week 2026-W39            # the week's one voiceover (costs money)
-node scripts/render.mjs 2026-W39 [slug]       # stills, clips, then semana.mp4
+node scripts/render.mjs 2026-W39 [slug]       # frames (fotograma.png), clips, then semana.mp4
+node scripts/export-stills.mjs 2026-W39 [slug]   # canvas -> out/<week>/<slug>/ad.png
 node --test scripts/test/*.test.mjs           # unit tests (use the glob)
 
 (cd video && npx remotion studio)                      # live preview
@@ -79,7 +85,9 @@ node --test scripts/test/*.test.mjs           # unit tests (use the glob)
 ```
 
 `render.mjs` is the way to render a week; the raw `remotion` commands are for
-previewing a single composition.
+previewing a single composition. `export-stills.mjs` reads the downloaded canvas
+from `out/<week>/imagenes/` (or `--dir path`) and writes nothing when its audit
+finds any error.
 
 ## Environment
 
@@ -129,6 +137,12 @@ tracked in this repo.
   event, `## outro`, written by the orchestrator (rules: `.claude/skills/church-ads/script.md`).
 - One component per event at `video/src/ads/<slug>.tsx`, props-driven so it can
   be re-rendered from `events.json` alone.
+- The event's `ad.png` is not a Remotion frame. It comes from the week's Claude
+  Design canvas, read back to `out/<week>/imagenes/` and exported by
+  `export-stills.mjs`, which first audits each artboard's text against
+  `events.json` (only the event's own title, ministry, date, time, non-default
+  place and the call to action). The frame `render.mjs` writes is
+  `fotograma.png`, only to check the video.
 - Slugs are lowercase, accent-stripped, hyphenated: `Charla familias` ->
   `charla-familias`.
 - Code does dates and numbers; the orchestrator reads the words. The calendar

@@ -117,10 +117,22 @@ out/2026-W39/
   lectura.json               lo que Claude entendió de los títulos y de church-info.md
   guion.md                   lo que dice la voz, de principio a fin
   voz.mp3                    la locución de toda la semana
+  imagenes/                  el lienzo de Claude Design de la semana, tal como se descargó
   charla-familias/
-    ad.png                   la imagen del anuncio
+    ad.png                   la imagen del anuncio, hecha en Claude Design
+    fotograma.png            un cuadro del video, solo para revisar el video
     clip.mp4                 el clip de ese evento, con su parte de la voz
 ```
+
+La **imagen de cada evento** (`ad.png`) sale de un **lienzo de Claude Design** que Claude
+arma para la semana, con **un color por tipo de evento** (jóvenes, damas, evangelismo,
+enseñanza, ayuno y uno general; están en `brand/paletas-imagen.md`) y una composición
+distinta para cada uno. Antes de guardarlas, la herramienta revisa que cada imagen solo
+diga el título, el ministerio, la fecha, la hora, el lugar (si no es el de siempre) y el
+llamado a la acción de su evento; si aparece algo más, no guarda ninguna hasta que se
+corrija. El **video** se sigue haciendo con los diseños de siempre y con los colores de la
+organización, así que la imagen y el video no se ven idénticos. El `fotograma.png` es solo
+un cuadro del video para revisarlo: la imagen del evento es el `ad.png`.
 
 `out/` es desechable: si algo no te gusta, cambia el origen (el guion, un dato, una
 corrección) y vuelve a generar. Nunca edites esos archivos a mano.
@@ -242,7 +254,8 @@ nombre y los datos de la iglesia nunca están escritos en el código.
 
 ## Antes de publicar, revisa siempre
 
-- **Las horas y las fechas** de cada `ad.png` y del `guion.md`. Es lo más importante.
+- **Las horas y las fechas** de cada `ad.png` (la imagen de cada evento, hecha en Claude
+  Design) y del `guion.md`. Es lo más importante.
 - **Escucha la voz completa.** Si un nombre suena raro (por ejemplo, una sigla), avísale a
   Claude: el guion respeta los nombres tal como están en el calendario.
 - **Los títulos** salen tal cual los escribió el calendario, con o sin tildes. Si en el
@@ -272,8 +285,9 @@ Por eso Claude te pregunta cada semana en vez de generarlas por su cuenta.
 ## Cambiar solo un evento
 
 ```bash
-node scripts/render.mjs 2026-W39 charla-familias         # su imagen y su clip
+node scripts/render.mjs 2026-W39 charla-familias         # su clip
 node scripts/render.mjs 2026-W39                         # toda la semana y el video semanal
+node scripts/export-stills.mjs 2026-W39 charla-familias  # su imagen, del lienzo de Claude Design
 ```
 
 Al indicar un evento, no se rehace el video semanal: hace falta generar la semana
@@ -288,7 +302,8 @@ generar completa con `node scripts/tts.mjs --week 2026-W39`.
 | `overrides/` | Correcciones de una persona, por semana |
 | `brand/` | Logo y fuentes |
 | `video/public/motifs/` | Imágenes de fondo de los anuncios, una por tema, ya generadas y revisadas |
-| `video/src/brand/tokens.ts` | Colores, tipografía y tamaños: el único sitio donde cambia el diseño de marca |
+| `video/src/brand/tokens.ts` | Colores, tipografía y tamaños del video: el único sitio donde cambia el diseño de marca |
+| `brand/paletas-imagen.md` | Los colores de las imágenes de los eventos, uno por tipo de evento (texto libre, se edita con palabras) |
 | `video/src/ads/` | Un archivo de diseño por evento |
 | `scripts/` | Los pasos que Claude ejecuta |
 | `out/` | Lo que se genera cada semana |

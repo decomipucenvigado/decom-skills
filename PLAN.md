@@ -253,7 +253,7 @@ Full end-to-end on a real week; `README.md` for the church team. *The Spanish
 
 | Question | Decision |
 |---|---|
-| Image generation | Design authored as a Remotion component. `remotion still` exports the PNG; the same component animates in the video. One source of truth. |
+| Image generation | *Changed 2026-09-29.* The event image (`ad.png`) comes from a weekly Claude Design canvas, one artboard per event, built by the orchestrator, read back to `out/<week>/imagenes/` and exported with `scripts/export-stills.mjs`, which first audits each artboard's text against `events.json`. Each kind of event has its own palette (`brand/paletas-imagen.md`). The video is untouched: `clip.mp4` and `semana.mp4` still come from the Remotion components with the IPUC palette, and the frame `render.mjs` takes from them is `fotograma.png`, only to check the video. The earlier decision (design authored as one Remotion component that exports the PNG and animates in the video) is superseded for images only. Design: `docs/superpowers/specs/2026-09-29-claude-design-stills-design.md`. |
 | Output format | 16:9 1920x1080 for everything. Templates built to re-layout to 9:16 later without a rewrite. |
 | Deliverables | Per event: image, audio, clip. Plus one combined weekly video. |
 | Calendar | "IPUC Envigado Central II-2026". Sample week 2026-W39 has three all-day events: Oracion virtual (Mon 21), Refam juvenil (Wed 23), Charla familias (Fri 25). |

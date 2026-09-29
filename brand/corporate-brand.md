@@ -11,6 +11,12 @@ Page numbers below (`p.14`) are the manual's own; they match the PDF page index.
 The manual is print-first and has **nothing on video, motion, sound or music**.
 Where this file goes beyond it, the line says *inference*.
 
+**What this file governs (2026-09-29).** The manual's palette below governs the video and
+the logo. The event images (`ad.png`) come from a Claude Design canvas and may use the
+per-kind palettes of [`paletas-imagen.md`](paletas-imagen.md), which leave the manual's
+palette on purpose. The logo rules (§ 3, and item 1 of the § 6 checklist) still apply to
+them: unaltered, on a flat background, in the right variant for that background.
+
 ## 1. Colors
 
 The manual defines three colors and one gradient. Its glossary says these are "the

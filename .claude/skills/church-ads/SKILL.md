@@ -238,6 +238,40 @@ per-event critical path, the same way TTS is centralized rather than run per eve
 (`CLAUDE.md` hard rule 4); a designer never generates or edits these images either way.
 Note in the final report (step 11) that this week's motifs are new and worth a look.
 
+**While the designers work, build the week's image canvas yourself.** Each event's
+`ad.png` does not come from a designer's component (those make the video only) but from
+one Claude Design canvas for the whole week, so the week's variety stays balanced. A
+subagent has no `Artifact` tool, and only you build and export it, serialized like every
+render (`CLAUDE.md` hard rule 4). Follow the spec's "Spike result"
+(`docs/superpowers/specs/2026-09-29-claude-design-stills-design.md`, including its "Write
+side" subsection once present) and the type's own instructions; do not invent the artboard
+markup yourself.
+
+- Read `brand/paletas-imagen.md`. It says which palette each event takes, the only text an
+  artboard may carry (the event's own title, ministry, date, time, its place unless it is
+  the default, and the church's call to action) and which logo variant goes on which
+  field. Keep the kind each event took for the report (step 11).
+- Start with the `Artifact` `quickstart` (`intent: "design"`, `design_systems: false`: the
+  account's default design system is not the IPUC's), then publish a private Design
+  artifact `IPUC <week>` from the type.
+- Upload the brand assets to that canvas with one `Artifact` publish (`asset: true`,
+  `file_paths`): the dark and light logos (`brand/logo/IPUC_COLOR para fondo oscuro.png`
+  and `... para fondo claro.png`) and the Montserrat 500, 700 and 800 files
+  (`brand/fonts/montserrat-latin-{500,700,800}-normal.woff2`). Reference each as the
+  `/_blob/<id>` the result returns, verbatim (the type forbids `data:` URIs and file
+  names).
+- One artboard per event, 1920x1080, with `data-slug="<slug>"` on its root element; the
+  first one goes in `project/Main.dc.html`.
+- Read it back to `out/<week>/imagenes/`. Delete any older `out/<week>/imagenes/` first, so
+  a stale artboard cannot pass for a current one. Then `Artifact` `list` with
+  `scope: "files"`, and `read` with `paths` and `out_dir` for `project/canvas.json` and
+  every `project/*.dc.html` (skip `index.html`, `app.js`, `app.css` and the reference
+  pages). Then `list` with `scope: "assets"` and `read` with `path` (singular), once per
+  asset, which saves `<id>.<ext>` at the root of `out_dir`.
+
+If the canvas cannot be published or read back, the video is unaffected: carry on, there
+is no `ad.png` this week, and step 11 says so.
+
 ### 6. Write the week's narration
 
 Write `out/<week>/guion.md` yourself, once, with every event of `events.json` in view,
@@ -246,7 +280,7 @@ following `script.md`: `## intro`, one `## <slug>` per event in `events.json` or
 event line opens, let the lines lead into one another, and keep the church's call to
 action for the outro alone.
 
-### 7. Validate
+### 7. Validate, and export the images
 
 ```bash
 node scripts/validate.mjs 2026-W39
@@ -261,6 +295,22 @@ yourself), fix a script error in `guion.md`, then validate again. Notices do not
 Then read `guion.md` against `events.json` yourself. The checker is a net, not proof:
 it will not notice an invented topic. A time in a church ad that is not in the record
 sends real people to a locked door.
+
+Then turn the canvas of step 5 into the images:
+
+```bash
+node scripts/export-stills.mjs 2026-W39            # every event
+node scripts/export-stills.mjs 2026-W39 <slug>     # one event only
+```
+
+It reads `out/<week>/imagenes/`, checks that every font and image really loaded and that
+each artboard is 1920x1080, audits each artboard's text against `events.json`, and writes
+`out/<week>/<slug>/ad.png`. It is CPU-bound like a render: run it alone, never next to
+one. Exit **2** blocks the images, and nothing is written meanwhile: an artboard that fails
+the audit, a font or image that did not load, a missing asset, a wrong size. Fix the
+canvas (update the same artifact), read it back as in step 5 and export again. Exit **1**
+means an input is missing or the browser could not start. The audit is a net, not proof,
+like `validate.mjs`: you still look at every `ad.png` (step 10).
 
 ### 8. Checkpoint 2: show the script before the voice
 
@@ -300,14 +350,18 @@ one narration, so a facts error in another event's line blocks it too.
 
 `render.mjs` validates again, regenerates `video/src/ads/registry.gen.ts`, stages
 the week's `voz.mp3` into `video/public/audio/semana.mp3`, cuts the scenes where the
-voice pauses, bundles once, and renders one thing at a time: per event `ad.png` and
-`clip.mp4` (its own slice of the narration), then `semana.mp4` (an intro card, the
-events in order with transitions, an outro, one continuous narration over all of it; a
-music bed only if `video/public/music/bed.mp3` exists). Set
-`REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own Chromium.
+voice pauses, bundles once, and renders one thing at a time: per event `fotograma.png` (a
+frame of the clip, only to check the video) and `clip.mp4` (its own slice of the
+narration), then `semana.mp4` (an intro card, the events in order with transitions, an
+outro, one continuous narration over all of it; a music bed only if
+`video/public/music/bed.mp3` exists). The images are not made here: they come from the
+export of step 7. Set `REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own
+Chromium.
 
-Look at the stills (`out/<week>/<slug>/ad.png`) before calling it done. Generated
-output is disposable and is never edited by hand: change the source and render again.
+Look at the stills before calling it done: "the stills" now means the event images,
+`out/<week>/<slug>/ad.png`; `fotograma.png` is only for checking the video. Generated
+output is disposable and is never edited by hand: change the source and render again (for
+an image, the canvas, then read it back and export again).
 
 ### 11. Report
 
@@ -317,8 +371,12 @@ the events made without a time or place, the events left out (by their own answe
 them that «anúncialo» brings one back), whether the week was rendered silent (and how to
 retry: they can ask you to voice it again; the command is `node scripts/tts.mjs --week
 <week>`), whether this week's background images are new (step 5) and worth a look, the
-designers' `avisos` put in plain words, and any word the voice may mispronounce. Always end
-with the reminder to check every time and date in the images.
+events that have no image (no `ad.png`: the canvas could not be published, read back or
+exported; tell them, with no file names, that the video is fine and that a frame of it
+(`fotograma.png`) stands in until the image is done), the kind each event's image took, in
+words ("la de Ecos del Futuro salió en morado, por ser de jóvenes"), naming which of two
+kinds an event that fits both was given, the designers' `avisos` put in plain words, and
+any word the voice may mispronounce. Always end with the reminder to check every time and date in the images.
 
 ## Reading the calendar and church-info.md
 
@@ -496,6 +554,8 @@ out/<week>/
   events.json              the contract
   guion.md                 the week's narration, written by the orchestrator
   voz.mp3, voz.json, voz.alineacion.json   the one voiceover and its per-character timing
-  <slug>/{ad.png, clip.mp4}
+  imagenes/                the week's Claude Design canvas, read back from the published artifact
+  <slug>/{ad.png, fotograma.png, clip.mp4}   ad.png: export-stills.mjs from the canvas;
+                           fotograma.png and clip.mp4: render.mjs (Remotion)
   semana.mp4
 ```
