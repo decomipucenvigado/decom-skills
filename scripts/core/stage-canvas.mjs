@@ -8,7 +8,8 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BLOB = /\/_blob\/([0-9a-f]{32})/g;
+const BLOB = /\/_blob\/([^\s"'()<>?#\\]+)/g;
+const ID = /^[0-9a-f]{32}$/;
 const ASSET = /^([0-9a-f]{32})\.[A-Za-z0-9]+$/;
 
 /**
@@ -41,17 +42,17 @@ export function stageCanvas(dir, staging) {
   for (const nombre of archivos) {
     const archivo = `project/${nombre}`;
     const faltan = new Set();
-    const reescrito = readFileSync(join(proyecto, nombre), 'utf8').replace(BLOB, (todo, id) => {
-      const asset = assets.get(id);
+    const reescrito = readFileSync(join(proyecto, nombre), 'utf8').replace(BLOB, (todo, ref) => {
+      const asset = ID.test(ref) ? assets.get(ref) : undefined;
       if (!asset) {
-        faltan.add(id);
+        faltan.add(ref);
         return todo;
       }
       copyFileSync(join(dir, asset), join(staging, 'assets', asset));
       return `assets/${asset}`;
     });
-    for (const id of faltan) {
-      problemas.push({ regla: 'asset-faltante', mensaje: `${archivo} refers to /_blob/${id}, which was not downloaded: read that asset back with Artifact read (path)` });
+    for (const ref of faltan) {
+      problemas.push({ regla: 'asset-faltante', mensaje: `${archivo} refers to /_blob/${ref}, which was not downloaded (or is not a 32-hex asset id): read that asset back with Artifact read (path)` });
     }
     const ruta = join(staging, nombre);
     writeFileSync(ruta, reescrito);

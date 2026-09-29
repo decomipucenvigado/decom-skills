@@ -77,3 +77,48 @@ test('a download with no artboards is a problem', () => {
     assert.deepEqual(r.paginas, []);
   });
 });
+
+test('an id in uppercase or a short id is a problem, never left silently unresolved', () => {
+  const html = `<img src="/_blob/${'A'.repeat(32)}"><img src="/_blob/short">`;
+  conCanvas({ 'Main.dc.html': html }, {}, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas.map((p) => p.regla), ['asset-faltante', 'asset-faltante']);
+  });
+});
+
+test('an id followed by an extension is a problem, not rewritten to a doubled extension', () => {
+  conCanvas({ 'Main.dc.html': `<img src="/_blob/${LOGO}.png">` }, { [`${LOGO}.png`]: 'png' }, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas.map((p) => p.regla), ['asset-faltante']);
+    assert.equal(readFileSync(r.paginas[0].ruta, 'utf8').includes('.png.png'), false);
+  });
+});
+
+test('a query string after the id is kept', () => {
+  conCanvas({ 'Main.dc.html': `<img src="/_blob/${LOGO}?v=1">` }, { [`${LOGO}.png`]: 'png' }, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas, []);
+    assert.ok(readFileSync(r.paginas[0].ruta, 'utf8').includes(`src="assets/${LOGO}.png?v=1"`));
+  });
+});
+
+test('a missing asset still leaves the page staged and every resolvable reference rewritten', () => {
+  const html = `<img src="/_blob/${LOGO}"><img src="/_blob/${FUENTE}">`;
+  conCanvas({ 'Main.dc.html': html }, { [`${LOGO}.png`]: 'png' }, (dir, staging) => {
+    const r = stageCanvas(dir, staging);
+    assert.equal(r.paginas.length, 1);
+    assert.equal(r.problemas.length, 1);
+    const salida = readFileSync(r.paginas[0].ruta, 'utf8');
+    assert.ok(salida.includes(`assets/${LOGO}.png`));
+    assert.ok(salida.includes(`/_blob/${FUENTE}`));
+  });
+});
+
+test('a download with no project folder at all is a sin-artboards problem and writes no assets folder', () => {
+  conCanvas({}, {}, (dir, staging) => {
+    rmSync(join(dir, 'project'), { recursive: true, force: true });
+    const r = stageCanvas(dir, staging);
+    assert.deepEqual(r.problemas.map((p) => p.regla), ['sin-artboards']);
+    assert.equal(existsSync(join(staging, 'assets')), false);
+  });
+});
