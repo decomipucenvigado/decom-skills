@@ -8,9 +8,12 @@ the whole week — then edits the clips and the narration into one weekly video.
 
 **Scope: the IPUC organization only.** Every congregation shares the
 organization's identity (colors, logo, fonts), so the brand lives in code on
-purpose (`video/src/brand/tokens.ts`, `brand/`). Do not move it into
-`church-info.md` or generalize it to other brands. Only each congregation's own
-facts change (its name, address, services), and those live in `church-info.md`.
+purpose (`video/src/brand/tokens.ts`, `brand/`): the video and the logo take it
+from there. The event images take their per-kind palettes from
+`brand/paletas-imagen.md` instead (rule 5), so do not move those palettes into
+`tokens.ts`. Do not move the brand into `church-info.md` or generalize it to
+other brands. Only each congregation's own facts change (its name, address,
+services), and those live in `church-info.md`.
 
 Read `PLAN.md` first: it holds the build contract, the phase breakdown and the
 verified feasibility findings.

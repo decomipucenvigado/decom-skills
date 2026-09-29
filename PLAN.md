@@ -63,17 +63,23 @@ Orchestrator (main session — "professional video editor")
      own reply (routine confirmations are plain lines, not numbered); events with
      no time or place are made without it (never guessed); only integrity errors
      stop the run
-  5. fan out one ad-designer subagent per event (the visuals)
+  5. fan out one ad-designer subagent per event (the video components); meanwhile
+     build the week's Claude Design canvas (the images) and read it back to
+     out/<week>/imagenes/
   6. write the week's narration (guion.md) and validate it, and every ad, against
-     events.json
+     events.json; export each event's ad.png from the canvas with
+     scripts/export-stills.mjs (its audit blocks on any error)
   7. CHECKPOINT 2: show the script and wait for a yes before the paid voice
   8. voice the week in one take (voz.mp3 + per-character timing)
-  9. render stills, per-event clips, and the combined weekly video
+  9. render per-event clips and the combined weekly video (the Remotion frame,
+     fotograma.png, only checks the video)
 ```
 
 Subagents write component files in parallel (I/O-bound, cheap). They never render —
 rendering is CPU-bound and is serialized by the orchestrator. The narration and its one
-voicing are the orchestrator's, so the script is written with every event in view.
+voicing are the orchestrator's, so the script is written with every event in view. The
+image canvas is the orchestrator's too (a subagent has no `Artifact` tool), and its export
+is serialized like a render.
 
 Fan-out is what keeps this tractable: each designer's React source stays inside its own
 context window, and only a short manifest fragment comes back to the orchestrator.
@@ -91,6 +97,7 @@ context window, and only a short manifest fragment comes back to the orchestrato
 brand/
   logo.svg                       church logo (to be supplied)
   fonts/                         vendored font files for deterministic renders
+  paletas-imagen.md              palette per kind of event, for the images (free text)
 church-info.md                   this church's reference data: name, address, default
                                  place, ministries, call to action, recurring services
 church-info.example.md           suggests what to say (free text, read by the orchestrator)
@@ -110,18 +117,21 @@ scripts/
   core/                          tested logic (spanish, normalize,
                                  audit, guion, narracion, narracion-check, escenas,
                                  ad-source, tts, project, registry, render-plan,
-                                 stage-audio)
+                                 stage-audio, stage-canvas, cdp, still-source,
+                                 export-stills)
   test/                          node --test scripts/test/*.test.mjs
   normalize.mjs                  raw calendar -> events.json
   validate.mjs                   audits events.json, each ad and the week's guion.md
   gen-registry.mjs               rebuilds video/src/ads/registry.gen.ts
   tts.mjs                        ElevenLabs text-to-speech
   voice.json                     TTS model and voice settings (voice ID is in .env)
-  render.mjs                     stills, clips, weekly reel
+  render.mjs                     clips, fotograma.png, weekly reel
+  export-stills.mjs              week's Claude Design canvas -> <slug>/ad.png
 out/<YYYY>-W<NN>/
   events.json
   guion.md, voz.mp3, voz.json, voz.alineacion.json   the week's narration
-  <slug>/{ad.png, clip.mp4}
+  imagenes/                      the week's Claude Design canvas, read back from the artifact
+  <slug>/{ad.png, fotograma.png, clip.mp4}
   semana.mp4
 ```
 
@@ -233,7 +243,8 @@ Design: `docs/superpowers/specs/2026-09-21-weekly-narration-design.md`.
 
 ### Phase 4 — Assembly
 Orchestrator validates each delivery against `events.json` (this is what catches a
-hallucinated time), then renders stills, per-event clips, and `semana.mp4`:
+hallucinated time), then exports each event's image from the Claude Design canvas
+(`ad.png`) and renders per-event clips and `semana.mp4`:
 intro card, events joined by `<TransitionSeries>` with fade/slide/wipe, outro,
 music bed underneath.
 
