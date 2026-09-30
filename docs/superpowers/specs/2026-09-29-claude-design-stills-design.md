@@ -279,7 +279,8 @@ in order:
 5. `publish` with `url`, `root`, `file_path: <root>/project/canvas.json` and
    `files: {"project/Main.dc.html": "project/Main.dc.html"}`.
 6. `publish` with `url`, `root`, `file_path` set to one remaining artboard and `files` holding the
-   other seven. The type asks for this split: the index and entry first, the rest in a second call.
+   other seven. The type's `SKILL.md` asks for one call that sends every file. This run used two
+   calls (`canvas.json` and `Main.dc.html` first, then the other artboards), and that worked too.
 7. Read back as SKILL step 5 says: `list` (`files`), `read` (`paths`, `out_dir`) for `canvas.json`
    and the nine artboards (the result also prints each file's text in full), `list` (`assets`), then
    one `read` (`path`) per asset.
