@@ -258,3 +258,87 @@ and the shape of `canvas.json`; the spike had one board and did not exercise it.
   of that week, so a stale `bazar-del-libro` artboard cannot pass for a real one.
 - The type release (`1790707925-3098`) and its contract (0.2.47, newest 0.2.66) can change the
   layout above; re-check it if the read-back stops matching.
+
+### Write side (from Task 8)
+
+Run on 2026-09-29 for 2026-W40 (nine artboards, private canvas
+https://claude.ai/artifact/EaMu9pK3hzcA3GU2uoLoJY). The export passed on the first run. The calls,
+in order:
+
+1. `quickstart` with `intent: "design"`, `design_systems: false`: returns the Design type's `type_url`.
+2. `publish` with that `type_url`, `title` (`IPUC semana 28 sep - 4 oct`),
+   `auto_open: "after_first_write"`, and no files. This is SKILL step 5's "publish ... from the type"
+   (confirmed). It creates the empty canvas and returns its `url` plus the type's instructions and
+   `format.md`, so no separate read is needed.
+3. `publish` with `url`, `asset: true`, `file_paths` holding both logos and the three Montserrat
+   files: five uploads in one call, each returning `/_blob/<id>`. No `capabilities` and no skill had
+   to be loaded; the canvas inherits `assets` from its type.
+4. Write the files with the file tool under one scratch `<root>`: `project/canvas.json` first, with
+   every board already in `boards` and `order`, then one `project/<name>.dc.html` per artboard
+   (`Main.dc.html` for the first event, `<slug>.dc.html` for the rest).
+5. `publish` with `url`, `root`, `file_path: <root>/project/canvas.json` and
+   `files: {"project/Main.dc.html": "project/Main.dc.html"}`.
+6. `publish` with `url`, `root`, `file_path` set to one remaining artboard and `files` holding the
+   other seven. The type asks for this split: the index and entry first, the rest in a second call.
+7. Read back as SKILL step 5 says: `list` (`files`), `read` (`paths`, `out_dir`) for `canvas.json`
+   and the nine artboards (the result also prints each file's text in full), `list` (`assets`), then
+   one `read` (`path`) per asset.
+
+`canvas.json`: boards keyed by file name, each `{"x", "y", "w": 1920, "h": 1080, "title"}`, three
+per row at x 0, 2000 and 4000 and rows at y 0, 1200 and 2400 (80 px between frames, 120 between
+rows), plus `"launch": {"view": "canvas"}`, `"pages": []`, `"notes": {}`, `"designSystems": []` and
+`"createdOnFiles": {"v": 1, "at": "<now>"}`.
+
+A minimal artboard (the `/_blob` ids are the ones step 3 returned):
+
+```html
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Bazar del libro</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:'Montserrat';font-weight:500;font-style:normal;src:url(/_blob/<id-500>) format('woff2')}
+@font-face{font-family:'Montserrat';font-weight:700;font-style:normal;src:url(/_blob/<id-700>) format('woff2')}
+@font-face{font-family:'Montserrat';font-weight:800;font-style:normal;src:url(/_blob/<id-800>) format('woff2')}
+body{margin:0}
+</style>
+</helmet>
+<div data-slug="bazar-del-libro" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #4A1A8C; color: #FFFFFF; font-family: 'Montserrat', sans-serif">
+<div style="font-weight: 800; font-size: 300px">Bazar</div>
+<div style="position: absolute; right: 120px; top: 110px; padding: 28px; background: #FFFFFF; border-radius: 24px">
+<img src="/_blob/<id-logo-claro>" alt="" style="display: block; width: 280px; height: 194px">
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
+```
+
+What held, and what bit:
+
+- All markup is static: no `{{holes}}`, `<sc-for>`, `<sc-if>` or `<dc-import>`. So the missing
+  `support.js` does not change the export.
+- Shapes are plain `div`s, CSS gradients and inline `<svg>` polygons with no `<text>`. `url(...)`
+  goes only in `<helmet><style>`, because the type forbids it in inline styles. The logo takes
+  `alt=""` so it adds no text to the audit.
+- The audit reads `innerText`, which still includes text drawn past its box. A time set too large
+  for its tile ("10:30 a. m." at 150 px) spilled outside the tile, onto a background of its own
+  colour. The image read "0:30 a. m", yet the audit passed. Only looking at the PNG catches this, so
+  keep `white-space: nowrap` on times and dates and look at every image.
+- To iterate before publishing, point `exportStills` (`scripts/core/export-stills.mjs`) at a scratch
+  copy of `project/` with the assets saved as `<id>.<ext>`, and set its `salida` to write into the
+  scratchpad, not `out/`. The images exported from the real read-back were byte-identical to those
+  previews.
