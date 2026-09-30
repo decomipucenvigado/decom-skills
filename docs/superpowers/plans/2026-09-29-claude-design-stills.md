@@ -1,5 +1,7 @@
 # Event images from Claude Design Implementation Plan
 
+The committed code supersedes the code blocks below where they differ (see the ledger and the spec).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Each event's `ad.png` comes from a weekly Claude Design canvas (one artboard per event, a color per kind of event) instead of a Remotion frame, while the video stays on Remotion.

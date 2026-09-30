@@ -9,9 +9,9 @@ Todo sale en formato horizontal (16:9, 1920x1080), en español de Colombia y hab
 al público de **tú**.
 
 Es para las congregaciones de la **IPUC** (Iglesia Pentecostal Unida de Colombia). El
-logo, los colores y la tipografía son los de la organización, iguales para todas, y ya
-vienen dentro del proyecto. Lo único que cambia de una congregación a otra es su
-`church-info.md`: su nombre, su dirección y sus horarios.
+logo, los colores del video y la tipografía son los de la organización, iguales para
+todas, y ya vienen dentro del proyecto. Lo único que cambia de una congregación a otra es
+su `church-info.md`: su nombre, su dirección y sus horarios.
 
 ## La regla que no se rompe
 
@@ -100,7 +100,7 @@ En palabras sencillas, esto es lo que pasa:
    evento que nadie explicó queda fuera hasta que tú lo pidas, porque un anuncio publicado
    no se puede deshacer. Al final te dice cuáles dejó fuera, y uno vuelve a entrar si le
    dices «anúncialo».
-4. **Crea el diseño de cada evento.**
+4. **Crea el diseño de cada evento y arma las imágenes de la semana en Claude Design.**
 5. **Escribe la narración de la semana**: un solo guion (bienvenida, un evento tras
    otro y el cierre) y una sola voz que lo lee de corrido.
 6. **Revisa** que el guion no diga algo que no esté en el evento.
@@ -236,7 +236,7 @@ semana a otra.
 | `omitir` | `true` | saca el evento de la semana |
 
 Si editas el archivo a mano, vuelve a pedirle a Claude que actualice la semana. Como la
-hora quedó en el registro, el guion y los diseños se rehacen con ella.
+hora quedó en el registro, el guion, los diseños y la imagen se rehacen con ella.
 
 ## Dónde aparece el nombre de la iglesia
 
@@ -289,6 +289,11 @@ node scripts/render.mjs 2026-W39 charla-familias         # su clip
 node scripts/render.mjs 2026-W39                         # toda la semana y el video semanal
 node scripts/export-stills.mjs 2026-W39 charla-familias  # su imagen, del lienzo de Claude Design
 ```
+
+La imagen no se dibuja de nuevo: se vuelve a tomar la de ese evento del lienzo de Claude
+Design de la semana, así que, si la imagen tiene que cambiar, Claude corrige primero el
+lienzo. Aunque indiques un solo evento, se revisa el lienzo completo: un error en la
+imagen de cualquier evento detiene todas.
 
 Al indicar un evento, no se rehace el video semanal: hace falta generar la semana
 completa. La voz es una sola para toda la semana: si cambias algo del guion, se vuelve a

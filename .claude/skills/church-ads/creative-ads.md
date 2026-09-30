@@ -202,8 +202,8 @@ What is fixed:
 
 ## 7. You cannot see your work
 
-You never render, and the orchestrator will look at the still and may send it back. So
-build so it cannot go wrong quietly:
+You never render, and the orchestrator will look at `fotograma.png`, the frame of your clip,
+and may send it back. So build so it cannot go wrong quietly:
 
 - Give the motif its own region (the side or the bottom) and the text its own region. Let
   them overlap only where the text has a panel behind it.
@@ -240,7 +240,7 @@ such as ad5's "Envigado Central" is not reproduced either.
 
 Add `nivel` to your manifest fragment (see `.claude/agents/ad-designer.md`): `institucional`,
 `tematico` or `juvenil`. If it was a judgement call, say why in one line of `avisos`. The
-orchestrator reads the stills against the level you chose.
+orchestrator reads `fotograma.png`, the frame of your clip, against the level you chose.
 
 Also add `motif`: the cached filename you placed with `MotifImage` (e.g. `jovenes.png`), or
 `null` if your ad has none. The orchestrator uses this to know exactly which categories are

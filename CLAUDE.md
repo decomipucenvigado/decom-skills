@@ -79,7 +79,7 @@ node scripts/validate.mjs 2026-W39 [slug] [--narracion]   # audit events.json, e
 node scripts/gen-registry.mjs                 # rebuild video/src/ads/registry.gen.ts
 node scripts/tts.mjs --week 2026-W39            # the week's one voiceover (costs money)
 node scripts/render.mjs 2026-W39 [slug]       # frames (fotograma.png), clips, then semana.mp4
-node scripts/export-stills.mjs 2026-W39 [slug]   # canvas -> out/<week>/<slug>/ad.png
+node scripts/export-stills.mjs 2026-W39 [slug ...] [--dir path]   # canvas -> out/<week>/<slug>/ad.png
 node --test scripts/test/*.test.mjs           # unit tests (use the glob)
 
 (cd video && npx remotion studio)                      # live preview
@@ -89,8 +89,9 @@ node --test scripts/test/*.test.mjs           # unit tests (use the glob)
 
 `render.mjs` is the way to render a week; the raw `remotion` commands are for
 previewing a single composition. `export-stills.mjs` reads the downloaded canvas
-from `out/<week>/imagenes/` (or `--dir path`) and writes nothing when its audit
-finds any error.
+from `out/<week>/imagenes/` (or `--dir path`). It writes no image on any error (the
+text audit, a font or image that did not load, a wrong size, a missing asset) and
+removes the old image of each event in scope.
 
 ## Environment
 
@@ -126,7 +127,9 @@ tracked in this repo.
   Remotion cannot download its own (see `PLAN.md` § Environment). Render scripts
   fall back to Remotion's default when unset. On Linux, Remotion's own headless
   Chromium also needs system libraries (`libnss3`, `libnspr4`, ...); `ldd` on
-  its `headless_shell` names any that are missing.
+  its `headless_shell` names any that are missing. `export-stills.mjs` uses this
+  variable, or else the headless shell Remotion installed (`chrome-headless-shell`,
+  or `headless_shell` on Linux arm64), and never downloads one.
 
 ## Conventions
 

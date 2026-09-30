@@ -1,6 +1,6 @@
 # Event images from Claude Design
 
-Status: design approved in chat on 2026-09-29. Planned in `docs/superpowers/plans/2026-09-29-claude-design-stills.md`; the spike passed (see "Spike result"), implementation in progress.
+Status: implemented. Design approved in chat on 2026-09-29, planned in `docs/superpowers/plans/2026-09-29-claude-design-stills.md`; the spike passed (see "Spike result") and the first real week, 2026-W40, was made this way (see "Write side").
 
 ## Goal
 
@@ -36,12 +36,13 @@ Checkpoint 1 confirmed -> events.json final
         +--> ad-designer subagents (Remotion, video only)      unchanged
         |
         +--> orchestrator builds the week's canvas:
-               Design artifact "IPUC <week>", private,
+               Design artifact named for the week ("IPUC semana 28 sep - 4 oct"), private,
                one 1920x1080 artboard per event, [data-slug="<slug>"]
                palette from brand/paletas-imagen.md
              -> Artifact read: published HTML saved to out/<week>/imagenes/
              -> scripts/export-stills.mjs: reads each artboard's visible text in the
-                browser, audits it (still-source), then a Chromium screenshot per artboard
+                browser (raw CDP, Remotion's installed headless shell, page scripts
+                disabled), audits it (still-source), then a screenshot per artboard
              -> out/<week>/<slug>/ad.png
 
 render.mjs: clips and semana.mp4 as today; the Remotion frame is written to
@@ -63,7 +64,7 @@ keeps `CLAUDE.md` rule 4 (nothing renders in parallel).
 | File | Purpose |
 |---|---|
 | `brand/paletas-imagen.md` | Free text: palette per kind of event. Read by the orchestrator, parsed by no code (the "Claude reads the words" decision). |
-| `scripts/export-stills.mjs` | `node scripts/export-stills.mjs <week> [slug]`. Opens the downloaded HTML with `@remotion/renderer`'s Chromium, waits for fonts and images, screenshots each `[data-slug]` element at 1920x1080 and writes `ad.png`. Errors if an element is missing or not 1920x1080. |
+| `scripts/export-stills.mjs` | `node scripts/export-stills.mjs <week> [slug ...] [--dir path]`. Opens the downloaded HTML in Remotion's installed headless shell (`chrome-headless-shell`, or `headless_shell` on Linux arm64; `REMOTION_BROWSER_EXECUTABLE` overrides it; none is ever downloaded), driven over raw CDP by `scripts/core/cdp.mjs` with Node built-ins only and with the page's scripts disabled. Waits for fonts and images, screenshots each `[data-slug]` element at 1920x1080 and writes `ad.png`. Errors if an element is missing or not 1920x1080 (see "The exporter's own checks"). |
 | `scripts/core/still-source.mjs` | Pure audit of the artboards' text against `events.json` (below). It runs inside `export-stills.mjs`, not `validate.mjs`, because reading an artboard's visible text needs the browser. |
 | `scripts/test/still-source.test.mjs`, `scripts/test/export-stills.test.mjs` | Tests, written first, with the fictional "Iglesia Ejemplo". |
 
@@ -109,9 +110,32 @@ has a time), `lugar` (only if it differs from `iglesia.lugarPorDefecto`) and
 - `artboard-faltante`: an event without an artboard.
 - `artboard-sobrante`: an artboard whose slug is not an event.
 - `artboard-duplicado`: two artboards with one slug.
+- `sin-iglesia`: `events.json` has no church name (a forgotten `lectura.json`), so the
+  typed-name check could not run; same wording as `validate.mjs`.
 
 This is a net, not proof, like the narration check: the orchestrator still looks at every
 `ad.png` before reporting.
+
+### The exporter's own checks
+
+The page is read with its own scripts disabled (`Emulation.setScriptExecutionDisabled`), so
+an artboard's inline `<script>` cannot change its text between the audit and the photo.
+Besides `asset-faltante` and `sin-artboards` (before the browser opens), `fuente-no-cargada`,
+`imagen-rota` and `tamano-artboard`, it reports, each with its `slug`:
+
+- `slug-desconocido`: a requested slug that is not an event of `events.json` (the wording
+  of `validate.mjs`), found before any browser opens. A requested event with no artboard is
+  only `artboard-faltante`.
+- `texto-no-auditable`: something the photo shows but `innerText` does not, so the audit
+  cannot read it: an `iframe`, `frame`, `object`, `embed`, `input`, `textarea` or `select`
+  inside an artboard; a `::before` or `::after` whose `content` has a letter or digit; or
+  rendered text outside every artboard (named after the artboard it overlaps, if any).
+- `texto-desbordado`: rendered text inside an artboard that has a digit (a time or a date)
+  and is not horizontally inside, within 1 px, every ancestor up to the artboard that paints
+  a background or clips (`overflow-x` not `visible`), the artboard included, or not
+  vertically inside the artboard, give or take a quarter of its font size. This is the W40
+  "0:30 a. m." case below. A word with no digit may bleed on purpose (a giant "Culto" off
+  the bottom edge).
 
 ## Docs and rules that change
 
@@ -129,12 +153,16 @@ This is a net, not proof, like the narration check: the orchestrator still looks
 
 ## Failure modes
 
-- The canvas cannot be published or read back: no `ad.png` is written for the week; the
-  video is unaffected. The report says so in plain Spanish and points at each event's
-  `fotograma.png` as a temporary stand-in.
-- An artboard fails the audit: fix the canvas and export again; nothing is exported
-  meanwhile.
-- One event has no `ad.png` after export: it is listed in the report; the others are kept.
+- The canvas cannot be published or read back: no `ad.png` is written for the week, and
+  any left from an earlier run is removed; the video is unaffected. The report says so in
+  plain Spanish and points at each event's `fotograma.png` as a temporary stand-in.
+- The export is all or nothing. Any error (an artboard that fails the audit, a font or image
+  that did not load, a wrong size, a missing asset) writes no image and removes the old
+  image of each event in scope, so no stale image survives while the report says the event
+  has none. Fix the canvas and export again. A single-slug export still audits the whole
+  canvas, so one bad artboard blocks every event until it is fixed; the report lists the
+  events with no image.
+- The browser cannot start, dies or stalls: exit 1, and nothing is written or removed.
 
 ## Testing
 
@@ -241,11 +269,12 @@ and the shape of `canvas.json`; the spike had one board and did not exercise it.
    1920x1080 at scale 1, `Page.captureScreenshot` with `clip`). Kill the browser in a `finally`:
    a script that throws before `proc.kill()` leaves the process running.
 
-### What Task 7 (end to end) must know
+### What the end-to-end run must know
 
-- Upload the brand assets (logo, plus the 500, 700 and 800 Montserrat files) to **each week's
-  canvas**: they belong to one artifact. One `Artifact` publish with `asset: true` and
-  `file_paths` uploaded all four in a single call; reference the returned `/_blob/<id>` verbatim.
+- Upload the brand assets (the two logos, dark and light, plus the 500, 700 and 800 Montserrat
+  files) to **each week's canvas**: they belong to one artifact. One `Artifact` publish with
+  `asset: true` and `file_paths` uploads all five files (two logos, three fonts) in a single
+  call; reference the returned `/_blob/<id>` verbatim.
   The tool also describes `from_url` with `asset_ids` to copy them from an earlier canvas
   (not tried here).
 - After publishing, read back only what the exporter needs: `project/canvas.json`, every
@@ -285,10 +314,11 @@ in order:
    and the nine artboards (the result also prints each file's text in full), `list` (`assets`), then
    one `read` (`path`) per asset.
 
-`canvas.json`: boards keyed by file name, each `{"x", "y", "w": 1920, "h": 1080, "title"}`, three
-per row at x 0, 2000 and 4000 and rows at y 0, 1200 and 2400 (80 px between frames, 120 between
-rows), plus `"launch": {"view": "canvas"}`, `"pages": []`, `"notes": {}`, `"designSystems": []` and
-`"createdOnFiles": {"v": 1, "at": "<now>"}`.
+`canvas.json`: `"v": 3`, `"title"` (the canvas's name, `IPUC semana 28 sep - 4 oct`), `boards`
+keyed by file name, each `{"x", "y", "w": 1920, "h": 1080, "title"}`, three per row at x 0, 2000
+and 4000 and rows at y 0, 1200 and 2400 (80 px between frames, 120 between rows), `order`, the
+array of the same file names as `boards` in reading order, plus `"launch": {"view": "canvas"}`,
+`"pages": []`, `"notes": {}`, `"designSystems": []` and `"createdOnFiles": {"v": 1, "at": "<now>"}`.
 
 A minimal artboard (the `/_blob` ids are the ones step 3 returned):
 
@@ -334,11 +364,15 @@ What held, and what bit:
   `support.js` does not change the export.
 - Shapes are plain `div`s, CSS gradients and inline `<svg>` polygons with no `<text>`. `url(...)`
   goes only in `<helmet><style>`, because the type forbids it in inline styles. The logo takes
-  `alt=""` so it adds no text to the audit.
+  `alt=""`, which only matters for a broken image, and `imagen-rota` catches that first:
+  `innerText` never includes alt text, so the audit is the same either way.
+- The logo is 2363 x 1638, a ratio of about 1.443:1. W40 drew it at 300 x 208 (and 280 x 194);
+  keep the ratio at any size.
 - The audit reads `innerText`, which still includes text drawn past its box. A time set too large
   for its tile ("10:30 a. m." at 150 px) spilled outside the tile, onto a background of its own
-  colour. The image read "0:30 a. m", yet the audit passed. Only looking at the PNG catches this, so
-  keep `white-space: nowrap` on times and dates and look at every image.
+  colour. The image read "0:30 a. m", yet the audit passed. The export now refuses this
+  (`texto-desbordado`, above); still keep `white-space: nowrap` on times and dates and look at
+  every image.
 - To iterate before publishing, point `exportStills` (`scripts/core/export-stills.mjs`) at a scratch
   copy of `project/` with the assets saved as `<id>.<ext>`, and set its `salida` to write into the
   scratchpad, not `out/`. The images exported from the real read-back were byte-identical to those

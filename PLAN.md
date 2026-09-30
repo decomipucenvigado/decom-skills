@@ -71,8 +71,9 @@ Orchestrator (main session — "professional video editor")
      scripts/export-stills.mjs (its audit blocks on any error)
   7. CHECKPOINT 2: show the script and wait for a yes before the paid voice
   8. voice the week in one take (voz.mp3 + per-character timing)
-  9. render per-event clips and the combined weekly video (the Remotion frame,
-     fotograma.png, only checks the video)
+  9. export the images again against the final events.json, then render per-event
+     clips and the combined weekly video (the Remotion frame, fotograma.png, only
+     checks the video)
 ```
 
 Subagents write component files in parallel (I/O-bound, cheap). They never render —
