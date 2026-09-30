@@ -11,32 +11,41 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ROOT } from './project.mjs';
 
-/** The browser to use: the one the environment names, else Remotion's local headless shell. Never downloads. */
-export async function resolveBrowser() {
+/** Where Remotion keeps the headless shell it downloaded: <platform>/chrome-headless-shell-<platform>/<binary>. */
+const DESCARGA_REMOTION = join(ROOT, 'video', 'node_modules', '.remotion', 'chrome-headless-shell');
+
+/**
+ * The browser to use: the one the environment names, else Remotion's local headless shell under
+ * `base`. Never downloads. Remotion names the binary `chrome-headless-shell`, except on Linux arm64
+ * (and Amazon Linux), where it is `headless_shell`.
+ */
+export async function resolveBrowser({ base = DESCARGA_REMOTION } = {}) {
   const elegido = process.env.REMOTION_BROWSER_EXECUTABLE;
   if (elegido) {
     if (existsSync(elegido)) return elegido;
     throw new Error(`REMOTION_BROWSER_EXECUTABLE points to ${elegido}, which does not exist`);
   }
-  const base = join(ROOT, 'video', 'node_modules', '.remotion', 'chrome-headless-shell');
   if (existsSync(base)) {
     // Remotion also leaves a VERSION file next to the platform folder: only directories can hold the browser.
     const carpetas = (ruta) => readdirSync(ruta, { withFileTypes: true }).filter((e) => e.isDirectory());
     for (const plataforma of carpetas(base)) {
       const raiz = join(base, plataforma.name);
       for (const version of carpetas(raiz)) {
-        const candidato = join(raiz, version.name, 'chrome-headless-shell');
-        if (existsSync(candidato)) return candidato;
+        for (const nombre of ['chrome-headless-shell', 'headless_shell']) {
+          const candidato = join(raiz, version.name, nombre);
+          if (existsSync(candidato)) return candidato;
+        }
       }
     }
   }
-  throw new Error('no headless Chromium found: render a week once so Remotion downloads it, or set REMOTION_BROWSER_EXECUTABLE to a chrome-headless-shell path');
+  throw new Error('no headless Chromium found: run (cd video && npx remotion browser ensure), or set REMOTION_BROWSER_EXECUTABLE to a chrome-headless-shell path');
 }
 
 /**
  * The launch flags. On Linux the sandbox is turned off, as Remotion's own launcher does: as root or
  * in a container chrome-headless-shell refuses to start without it, and this driver only opens local
- * files it staged itself.
+ * files it staged itself. Also on Linux, shared memory goes to the temp dir instead of /dev/shm,
+ * which containers often keep too small for a 1920x1080 page.
  */
 export function argumentosNavegador(perfil, plataforma = process.platform) {
   return [
@@ -46,16 +55,19 @@ export function argumentosNavegador(perfil, plataforma = process.platform) {
     '--hide-scrollbars',
     '--force-color-profile=srgb',
     '--no-first-run',
-    ...(plataforma === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+    ...(plataforma === 'linux' ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : []),
     'about:blank',
   ];
 }
 
 /**
  * Launches the browser and returns a driver for one 1920x1080 page. Call `close()` when done.
- * `espera` is how long, in milliseconds, one command or one page load may take before it rejects.
+ * `espera` is how long, in milliseconds, one command or one page load may take before it rejects;
+ * `arranque` is how long the browser may take to start and to accept the DevTools connection.
+ * The page's own scripts never run: the page is only read and photographed, and a script could
+ * change its text between the audit and the photo.
  */
-export async function openPage(executable, { espera = 30000 } = {}) {
+export async function openPage(executable, { espera = 30000, arranque = 15000 } = {}) {
   const segundos = espera / 1000;
   const perfil = mkdtempSync(join(tmpdir(), 'cdp-profile-'));
   let proc;
@@ -97,26 +109,35 @@ export async function openPage(executable, { espera = 30000 } = {}) {
       });
       proc.on('exit', () => rej(new Error(`the browser exited: ${buf.trim()}`)));
       proc.on('error', (err) => rej(new Error(`could not start the browser ${executable}: ${err.message}`)));
-      plazo = setTimeout(() => rej(new Error(`the browser did not start in time: ${buf.trim()}`)), 15000);
+      plazo = setTimeout(() => rej(new Error(`the browser did not start in time: ${buf.trim()}`)), arranque);
     }).finally(() => clearTimeout(plazo));
     ws = new WebSocket(wsUrl);
     await new Promise((res, rej) => {
       ws.addEventListener('open', res);
       ws.addEventListener('error', () => rej(new Error('could not connect to the browser')));
-    });
+      ws.addEventListener('close', () => rej(new Error('could not connect to the browser: the connection closed')));
+      terminado.then(() => rej(new Error('could not connect to the browser: it exited')));
+      plazo = setTimeout(() => rej(new Error(`could not connect to the browser within ${arranque / 1000} s`)), arranque);
+    }).finally(() => clearTimeout(plazo));
   } catch (err) {
+    try {
+      ws?.close(); // a connection still being opened is abandoned, so it cannot outlive the browser
+    } catch {}
     await cerrar();
     throw err;
   }
 
   let id = 0;
   const pendientes = new Map();
+  const cargas = new Set(); // the rejecters of the page loads being waited for
   const oyentes = [];
   let caida = null; // the error every command gets once the connection is gone
   const caer = () => {
     caida ??= new Error('the browser closed the connection');
     for (const { rej } of pendientes.values()) rej(caida);
     pendientes.clear();
+    for (const rej of cargas) rej(caida);
+    cargas.clear();
   };
   ws.addEventListener('close', caer);
   ws.addEventListener('error', caer);
@@ -163,17 +184,22 @@ export async function openPage(executable, { espera = 30000 } = {}) {
     const { sessionId } = await enviar('Target.attachToTarget', { targetId, flatten: true });
     const cmd = (method, params) => enviar(method, params, sessionId);
     await cmd('Page.enable');
+    await cmd('Emulation.setScriptExecutionDisabled', { value: true });
     await cmd('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
 
     return {
       async navigate(url) {
         let oyente;
         let plazo;
+        let rechazar;
         const cargada = new Promise((res, rej) => {
           oyente = (m) => {
             if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res();
           };
           oyentes.push(oyente);
+          rechazar = rej;
+          if (caida) rej(caida);
+          else cargas.add(rej); // a dropped connection rejects it at once, instead of after `espera`
           plazo = setTimeout(() => rej(new Error(`the page did not finish loading within ${segundos} s: ${url}`)), espera);
         });
         cargada.catch(() => {}); // it may reject while `Page.navigate` is still awaited: never leave it unhandled
@@ -183,6 +209,7 @@ export async function openPage(executable, { espera = 30000 } = {}) {
           await cargada;
         } finally {
           clearTimeout(plazo);
+          cargas.delete(rechazar);
           const donde = oyentes.indexOf(oyente);
           if (donde !== -1) oyentes.splice(donde, 1);
         }

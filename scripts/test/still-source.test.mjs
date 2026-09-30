@@ -100,3 +100,13 @@ test('an event with no place passes, and the default place is matched ignoring c
   const mayusculas = { ...DOC, events: [{ ...CULTO, lugar: 'TEMPLO' }, RETIRO] };
   assert.deepEqual(reglas([{ ...BUENO[0], text: `${BUENO[0].text}\nTemplo` }, BUENO[1]], mayusculas), ['token-ajeno']);
 });
+
+test('events.json with no church name is an error, so a forgotten lectura.json cannot pass silently', () => {
+  for (const iglesia of [undefined, { ...IGLESIA, nombre: null }]) {
+    const r = checkStillText(BUENO, { ...DOC, week: '2026-W40', iglesia });
+    const e = r.errores.find((x) => x.regla === 'sin-iglesia');
+    assert.ok(e, 'sin-iglesia expected');
+    assert.equal(e.mensaje, 'events.json has no church name: write out/2026-W40/lectura.json and run normalize.mjs again');
+  }
+  assert.deepEqual(reglas(BUENO), []);
+});

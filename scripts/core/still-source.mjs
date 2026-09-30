@@ -90,6 +90,11 @@ export function checkStillText(tableros, doc) {
   const errores = [];
   const iglesia = doc.iglesia ?? {};
   const eventos = new Map(doc.events.map((e) => [e.slug, e]));
+  // Without the church's facts the typed-name check cannot run: loud, as in validate.mjs, so a
+  // forgotten lectura.json cannot skip it.
+  if (!doc.iglesia?.nombre) {
+    errores.push({ regla: 'sin-iglesia', mensaje: `events.json has no church name: write out/${doc.week ?? '<week>'}/lectura.json and run normalize.mjs again` });
+  }
 
   const vistos = new Set();
   for (const t of tableros) {
