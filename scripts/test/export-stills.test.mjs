@@ -246,6 +246,27 @@ test('a time that runs out of its tile is texto-desbordado (the "0:30 a. m." cas
   });
 });
 
+// Chrome serialises an opaque colour whose blue channel is 0 as "rgb(r, g, 0)"; that must not be mistaken for a
+// transparent one (a rgba(..., 0) alpha), or a tile painted in the IPUC gold would never be treated as a box.
+for (const color of ['#F0AB00', '#ffd700', '#ff0000', '#ffa500']) {
+  test(`a time that runs out of a tile painted ${color} (blue channel 0) is texto-desbordado`, CON_NAVEGADOR, async () => {
+    const doc = { ...DOC, events: [{ ...CULTO, hora: '10:30', horaTexto: '10:30 a. m.' }, RETIRO] };
+    const tablero = `<div class="ab" data-slug="culto-jovenes"><span>Culto de jóvenes</span><p style="font-size:60px">viernes 3 de octubre</p><div style="width:300px;background:${color};font-size:150px;white-space:nowrap">10:30 a. m.</div></div>`;
+    await conCanvas({ 'Main.dc.html': pagina(tablero + retiro) }, {}, async (dir, salida) => {
+      const e = unico(await exportStills({ dir, doc, salida, executable }), 'texto-desbordado');
+      assert.equal(e.slug, 'culto-jovenes');
+    });
+  });
+}
+
+test('a fully transparent tile (alpha 0, even with a blue channel of 0) is not a box: the artboard is the only frame', CON_NAVEGADOR, async () => {
+  const doc = { ...DOC, events: [{ ...CULTO, hora: '10:30', horaTexto: '10:30 a. m.' }, RETIRO] };
+  const tablero = `<div class="ab" data-slug="culto-jovenes"><span>Culto de jóvenes</span><p style="font-size:60px">viernes 3 de octubre</p><div style="width:300px;background:rgba(255, 215, 0, 0);font-size:150px;white-space:nowrap">10:30 a. m.</div></div>`;
+  await conCanvas({ 'Main.dc.html': pagina(tablero + retiro) }, {}, async (dir, salida) => {
+    assert.deepEqual((await exportStills({ dir, doc, salida, executable })).errores, []);
+  });
+});
+
 test('a time that bleeds off the bottom of the artboard is texto-desbordado', CON_NAVEGADOR, async () => {
   const tablero = `<div class="ab" data-slug="culto-jovenes"><span>Culto de jóvenes</span><div style="position:absolute;left:100px;top:1000px;font-size:150px;white-space:nowrap">7:00 p. m.</div></div>`;
   await conCanvas({ 'Main.dc.html': pagina(tablero + retiro) }, {}, async (dir, salida) => {

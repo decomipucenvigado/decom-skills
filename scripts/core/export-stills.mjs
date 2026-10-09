@@ -33,7 +33,8 @@ const LEER = `(async () => {
   const LETRA = /[\\p{L}\\p{N}]/u;
   const DIGITO = /\\d/;
   const corto = (s) => s.replace(/\\s+/g, ' ').trim().slice(0, 80);
-  const transparente = (c) => c === 'transparent' || /[,\\/]\\s*0(\\.0*)?\\s*\\)$/.test(c);
+  // an opaque colour with a blue channel of 0 is serialised "rgb(240, 171, 0)": only "rgba(..., 0)" or "... / 0)" is alpha 0
+  const transparente = (c) => c === 'transparent' || /^rgba\\(.*,\\s*0(\\.0*)?\\s*\\)$/.test(c) || /\\/\\s*0(\\.0*)?\\s*\\)$/.test(c);
   // an ancestor that paints a box or clips its content: a time inside it must stay inside it
   const caja = (el) => {
     const s = getComputedStyle(el);
