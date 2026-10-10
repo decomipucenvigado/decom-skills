@@ -222,8 +222,9 @@ function registroFinal(e) {
  *   time and place win over it. Its `recurrentes` are the church's recurring services of the week (`dia`,
  *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own. Its
  *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier.
- * @param {string|null} [args.despues] a weekday: keep only the events after that day of the week (the
- *   video played at that day's service); slugs are still those of the whole run
+ * @param {string|null} [args.despues] a weekday: keep only the events after that day's service (the video
+ *   played at it): the days after its first occurrence in the run, and that day's own events that start after
+ *   its last recurring service; slugs are still those of the whole run
  * @param {Record<string, object>} [args.overrides] human answers keyed by slug
  * @returns {{doc: object, problemas: string[]}}
  */
@@ -302,13 +303,20 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
 
   // A service's video keeps only what comes after that day, with the slugs the whole run gave them.
   let inicioTexto = inicio;
+  // On that day itself only what starts after its last recurring service stays (Sunday's evening vigil
+  // in the video for Sunday morning); a day with no recurring service of its own keeps nothing of itself.
   if (despues) {
-    const corte = fechasDelDia(despues, lunes, fin)[0];
+    const corte = fechasDelDia(despues, inicio, fin)[0];
     if (!corte) {
       problemas.push(`despues "${despues}" is not a weekday, the whole run is kept`);
     } else {
-      eventos = eventos.filter((e) => e.fecha > corte);
-      inicioTexto = addDays(corte, 1);
+      const ultimoServicio = eventos
+        .filter((e) => e.fecha === corte && e.origen === 'recurrente' && e.hora)
+        .map((e) => e.hora)
+        .sort()
+        .at(-1);
+      eventos = eventos.filter((e) => e.fecha > corte || (e.fecha === corte && ultimoServicio && e.hora > ultimoServicio));
+      inicioTexto = eventos.some((e) => e.fecha === corte) ? corte : addDays(corte, 1);
     }
   }
 

@@ -418,13 +418,16 @@ jóvenes"), naming which of two kinds an event that fits both was given, the des
 
 ### 12. One video per service, once the week's video is approved
 
-The week's video plays on its first day. At each later service of the week the past days
-are no longer news, so once the person approves the week's video, make one more video per
-service day of the run: the video played at Tuesday's service announces only what comes
-after Tuesday (not Tuesday itself), Thursday's only what comes after Thursday, and so on.
-The service days are the weekdays of `church-info.md`'s recurring services, except the
-day the run starts on (for IPUC Envigado Central: martes, jueves and sábado). Skip a day
-with nothing after it.
+The week's video is shared ahead of the week (on the Saturday before, say). At each service
+of the week the past is no longer news, so once the person approves the week's video, make
+one more video per service day of the run, every one of them including the run's first day:
+the video played at that day's service announces only what comes after that service. The days
+after it, and of that same day only what starts after its last recurring service: Sunday
+morning's video keeps that Sunday's evening vigil but not its morning services; Tuesday's,
+whose only service is Tuesday's, starts on Wednesday. The service days are the weekdays of
+`church-info.md`'s recurring services (for IPUC Envigado Central: domingo, martes, jueves and
+sábado). Skip a day with nothing after it. When the person asks for these videos one at a
+time, make the nearest service's first ("primero dame el de hoy").
 
 Each is a run of its own, `<week>-<weekday>` (accent-free: `2026-W42-sabado`), in
 `out/<week>-<weekday>/`:
@@ -436,7 +439,8 @@ node scripts/tts.mjs --week 2026-W42-martes
 node scripts/render.mjs 2026-W42-martes             # only its semana.mp4
 ```
 
-`normalize` reads the week's own raw files, reading and overrides, and keeps the slugs the
+The weekday names its first occurrence in the run, so in a run that starts on the Sunday before
+(`desde`), `domingo` is that first Sunday. `normalize` reads the week's own raw files, reading and overrides, and keeps the slugs the
 whole week gave each event, so nothing is asked again and every image is the week's
 `ad.png` (`render.mjs` takes it from the week's folder). No designer, canvas or export runs
 again. Its `guion.md` is yours: the intro (the formula of `script.md`, with this run's
@@ -449,6 +453,28 @@ the finished videos, rather than asking again. Each costs one voicing; send each
 
 Write the week's run as `desde` asks (§ *Reading the calendar*): the cut is by date, so a
 run that started on the Sunday before keeps its slugs here too.
+
+The person's later changes reach every video: a change to the week (an event added or
+dropped, a time) is made once in the week's run, then the week's video and each service's
+video are rebuilt from it (normalize, script, voice, render, in that order of runs). Send
+the nearest one first.
+
+### Lessons from the runs (keep them)
+
+- **An event that replaces a service** ("la Semana Pre-Congreso reemplaza el culto del
+  sábado"): drop that week's service with `omitir` on its slug; the replacing event keeps its
+  own record. Do not move the service's time onto it unless the person says so.
+- **A permanent change to a service** ("cámbialo a 6:30 para siempre"): edit
+  `church-info.md` (and offer it whenever an answer sounds permanent); this week's slug may
+  change with the time, so re-check the overrides that name it.
+- **A ministry you are not sure of**: a recurring service's "Dirigido por" line names who
+  leads that weekday's usual service, not a special event that falls on that day ("Culto de
+  obra social" on a Tuesday was not the Damas Dorcas'). Ask before tagging a calendar event
+  with the ministry of the service it may replace.
+- **A flyer the person sends** is that event's image (step 5): its speakers and slogans
+  stay on the image, out of the narration and the record.
+- **An event that spans non-consecutive days** (Thursday and Saturday): one event per day,
+  each with the same image, not one event with a range.
 
 ## Reading the calendar and church-info.md
 

@@ -574,3 +574,27 @@ test('despues that is not a weekday is a problem and keeps the whole run', () =>
   assert.equal(problemas.length, 1);
   assert.match(problemas[0], /marte/);
 });
+
+test("on a service day, despues keeps that day's events that start after its last recurring service", () => {
+  const { doc, problemas } = run(
+    [
+      timed('Vigilia', '2026-09-20T18:00:00-05:00', '2026-09-20T21:00:00-05:00'),
+      allDay('Bazar', '2026-09-20', '2026-09-21'),
+    ],
+    {
+      lectura: {
+        iglesia: IGLESIA,
+        desde: '2026-09-20',
+        recurrentes: [
+          { dia: 'domingo', titulo: 'Culto', hora: '09:00' },
+          { dia: 'domingo', titulo: 'Escuela', hora: '10:30' },
+        ],
+      },
+      despues: 'domingo',
+    },
+  );
+  assert.deepEqual(problemas, []);
+  // The first Sunday of the run (the 20th): its morning services and the untimed card go, the evening vigil stays.
+  assert.deepEqual(doc.events.map((e) => `${e.fecha} ${e.titulo}`), ['2026-09-20 Vigilia', '2026-09-27 Culto', '2026-09-27 Escuela']);
+  assert.equal(doc.semana.hablada, 'del veinte al veintisiete de septiembre');
+});
