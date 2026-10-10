@@ -31,6 +31,11 @@ git clone <the repo's URL, given by the person> decom-skills
 cd decom-skills
 ```
 
+On a fresh Debian or Ubuntu machine (a cloud VM, a container, CI), `bash scripts/setup-cloud.sh`
+does steps 2 to 4 for you and runs the unit tests and the type-check. It is idempotent, and it
+ends with a list of what only a person can finish (steps 5, 6, 6b and 7). Run it first, then
+continue from step 5.
+
 There is no root `package.json`: everything under `scripts/` runs on Node's built-ins
 only (`node:fs`, `node:path`, `node:child_process`, …). The only install step is `video/`
 (step 3).
@@ -90,6 +95,14 @@ is the one to act on.)
   `remotion still`/`studio` fall back to Remotion's own Chromium when it is unset, so
   this is additive, not a config file to edit.
 - Clean up the scratch file afterward: `rm -f /tmp/install-check.png`.
+- The image export (`scripts/export-stills.mjs`) uses the same browser: `REMOTION_BROWSER_EXECUTABLE`
+  when it is set, otherwise the headless shell Remotion installed under `video/node_modules/.remotion/`
+  (named `chrome-headless-shell`, or `headless_shell` on Linux arm64). It never downloads one, so on a
+  machine that has never rendered run `(cd video && npx remotion browser ensure)` first. If you point
+  `REMOTION_BROWSER_EXECUTABLE` at the system's Chromium on Ubuntu, check that it is not a snap: a snap
+  has its own private `/tmp`, so the export may not read its staged files. Set `TMPDIR` to a folder under
+  `$HOME` or use a Chromium that is not a snap. And since non-interactive shells (the Claude Code Bash
+  tool) do not read `~/.bashrc`, set the variable in the environment's own settings.
 
 Do not attempt to install a system ffmpeg or ffprobe — the bundled one is deliberately
 used instead (see CLAUDE.md § Environment); if audio-level measurement is ever needed,
@@ -171,6 +184,19 @@ EOF
 **Never print these values back**, in this step or later, and never commit `.env` (it is
 already in `.gitignore` — do not remove that line).
 
+## Step 6b — Claude Design (the event images)
+
+The image of each event (`ad.png`) is not rendered by Remotion. The `church-ads` skill builds it
+in a **Claude Design canvas** with the Artifact tool (Design type), reads the canvas back to
+`out/<week>/imagenes/` and exports it with `node scripts/export-stills.mjs <week>` (SKILL.md
+step 5 and step 7). The video itself is still rendered by Remotion.
+
+Check that the Claude Code session on this machine can use it: the Artifact tool must be
+available and able to create a Design artifact. If it is not, the image step cannot run: tell
+the person plainly, because the rest of the week (the video and the voice) would still work but
+without images. Do not try to work around it. The artifact is private to the account signed in
+to Claude Code; nothing is shared unless the person chooses to.
+
 ## Step 7 — This congregation's facts
 
 `church-info.md` at the repo root is what makes this copy of the tool belong to *this*
@@ -222,8 +248,11 @@ per-installation.
 (cd video && npx tsc --noEmit)
 ```
 
-This alone proves Node, `npm install` and the TypeScript toolchain are sound. It does not
-exercise rendering or TTS — do not fabricate a fake week to test those; the real proof is
+This alone proves Node, `npm install` and the TypeScript toolchain are sound. The unit tests
+go further: `node --test scripts/test/*.test.mjs` also launches the browser for the image
+exporter, so a green run proves Chromium and its launch options work here (a test that says
+"no headless Chromium found" is skipped, so read the summary line: skipped should be 0). It does
+not exercise rendering or TTS — do not fabricate a fake week to test those; the real proof is
 running the `church-ads` skill on the congregation's actual first week once the person is
 ready, which will exercise Google Calendar, `.env`, and Chromium/ffmpeg together end to
 end.
@@ -234,6 +263,7 @@ Tell the person, plainly, what is now true and what is still open:
 
 - Node, `video/`'s dependencies, and rendering are confirmed working on this machine.
 - Whether Google Calendar is connected, or still needs their action (step 5).
+- Whether Claude Design is available for the event images (step 6b).
 - `.env` is written (never repeat the values).
 - `church-info.md` now has this congregation's facts (name what was written).
 - The Montserrat/Myriad Pro gap (step 8), so it isn't a surprise later.
