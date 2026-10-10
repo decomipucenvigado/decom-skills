@@ -222,6 +222,7 @@ node_modules/
 /out/
 /video/out/
 /video/public/audio/
+/video/public/imagenes/
 /video/public/music/*
 !/video/public/music/.gitkeep
 .remotion/
