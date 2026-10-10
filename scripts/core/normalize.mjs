@@ -58,32 +58,46 @@ function leerFechas(raw, zonaCalendario) {
   return null;
 }
 
-/** The date, inside the week that starts on `inicio`, of a weekday as church-info.md writes it ("martes", "Sabados"). */
-function fechaDelDia(dia, inicio) {
+/** Every date from `inicio` to `fin` that falls on a weekday as church-info.md writes it ("martes", "Sabados"). */
+function fechasDelDia(dia, inicio, fin) {
   const nombre = typeof dia === 'string' ? nombreDia(dia.trim()) : null;
-  if (!nombre) return null;
-  for (let n = 0; n < 7; n++) {
-    const fecha = addDays(inicio, n);
-    if (diaSemana(fecha) === nombre) return fecha;
+  const fechas = [];
+  if (!nombre) return fechas;
+  for (let fecha = inicio; fecha <= fin; fecha = addDays(fecha, 1)) {
+    if (diaSemana(fecha) === nombre) fechas.push(fecha);
   }
-  return null;
+  return fechas;
 }
 
 /**
- * A recurring service Claude read from church-info.md, placed on its weekday of the week. Whether a
+ * The first day of the run. It is the week's Monday unless Claude's reading sets `desde`: the
+ * person asked to start a few days earlier (a Saturday run that also announces tomorrow, Sunday).
+ */
+function inicioDeLaCorrida(desde, lunes, problemas) {
+  if (desde === undefined) return lunes;
+  if (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde) || desde > lunes || desde < addDays(lunes, -6)) {
+    problemas.push(`lectura desde "${desde}" must be a YYYY-MM-DD date in the 6 days up to the week's Monday ${lunes}, ignored`);
+    return lunes;
+  }
+  return desde;
+}
+
+/**
+ * A recurring service Claude read from church-info.md, placed on each day of the run that is its weekday
+ * (one, unless `desde` starts the run early). Whether a
  * calendar card is that same service is Claude's call and the person's; this never merges or drops
  * anything. The slug comes from the day and start time so the same service keeps it from week to week.
  */
-function eventoRecurrente(servicio, inicio, problemas) {
-  const fecha = fechaDelDia(servicio.dia, inicio);
-  if (!fecha) {
+function eventosRecurrentes(servicio, inicio, fin, problemas) {
+  const fechas = fechasDelDia(servicio.dia, inicio, fin);
+  if (!fechas.length) {
     problemas.push(`lectura recurrentes: dia "${servicio.dia}" is not a weekday, service ignored`);
-    return null;
+    return [];
   }
   const titulo = servicio.titulo?.trim();
   if (!titulo) {
     problemas.push(`lectura recurrentes (${servicio.dia}): a service needs a titulo, ignored`);
-    return null;
+    return [];
   }
   let hora = null;
   if (servicio.hora) {
@@ -91,7 +105,7 @@ function eventoRecurrente(servicio, inicio, problemas) {
     else problemas.push(`lectura recurrentes "${titulo}": hora "${servicio.hora}" is not HH:MM (24h), ignored`);
   }
   const lugar = servicio.lugar?.trim() || null;
-  return {
+  return fechas.map((fecha) => ({
     eventId: null,
     origen: 'recurrente',
     titulo,
@@ -106,7 +120,7 @@ function eventoRecurrente(servicio, inicio, problemas) {
     lugarFuente: lugar ? 'church-info.md' : null,
     modalidad: 'presencial',
     plantilla: 'estandar',
-  };
+  }));
 }
 
 function descartar(raw, motivo) {
@@ -206,13 +220,15 @@ function registroFinal(e) {
  *   titles and church-info.md: the church facts, and per calendar event id its clean `titulo`, `hora` +
  *   `horaFuente`, `lugar` + `lugarFuente`, `ministerio`, `modalidad`, and optional `horaNota`. The card's own
  *   time and place win over it. Its `recurrentes` are the church's recurring services of the week (`dia`,
- *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own.
+ *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own. Its
+ *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier.
  * @param {Record<string, object>} [args.overrides] human answers keyed by slug
  * @returns {{doc: object, problemas: string[]}}
  */
 export function normalizeWeek({ week, calendars, lectura = {}, overrides = {} }) {
-  const { inicio, fin } = weekRange(week);
   const problemas = [];
+  const { inicio: lunes, fin } = weekRange(week);
+  const inicio = inicioDeLaCorrida(lectura.desde, lunes, problemas);
   const ids = new Set();
   const descartados = [];
   let eventos = [];
@@ -274,8 +290,7 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {} })
   }
 
   for (const servicio of lectura.recurrentes ?? []) {
-    const evento = eventoRecurrente(servicio, inicio, problemas);
-    if (evento) eventos.push(evento);
+    eventos.push(...eventosRecurrentes(servicio, inicio, fin, problemas));
   }
 
   eventos.sort(comparar);

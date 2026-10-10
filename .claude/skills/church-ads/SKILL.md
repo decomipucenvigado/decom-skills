@@ -416,6 +416,12 @@ read is shown there with where it came from. Write it fresh on every run, from t
 }
 ```
 
+When the person asks for a run that starts before the Monday (on a Saturday, "desde el domingo
+11", so tomorrow's events are announced too), keep the ISO week of the Monday after it and add
+`"desde": "YYYY-MM-DD"` at the top level: the run then starts that day (at most 6 days early),
+its cards are kept, the intro says the longer range, and each recurring service lands on every
+matching day of it.
+
 Every key is optional except `iglesia.nombre` (`validate.mjs` errors without it, so a
 forgotten file cannot silently skip the intro and outro checks). Leave out what the sources
 do not say; the code never fills it in.

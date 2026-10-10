@@ -512,3 +512,37 @@ test('recurring services pass the audit with no errors and no notices', () => {
   assert.equal(doc.events.length, 2);
   assert.deepEqual(auditEvents(doc), { errores: [], avisos: [] });
 });
+
+// The person may ask for a run that starts on the Sunday before the week (today's Saturday
+// run, say, so tomorrow's service is announced too). lectura.json's `desde` moves the start.
+const DOMINGO_ANTES = '2026-09-20';
+
+test('lectura.desde starts the run on an earlier day: its cards come in and the week text says it', () => {
+  const { doc, problemas } = run(
+    [allDay('Bazar', '2026-09-20', '2026-09-21'), allDay('Antes', '2026-09-19', '2026-09-20')],
+    { lectura: { iglesia: IGLESIA, desde: DOMINGO_ANTES } },
+  );
+  assert.deepEqual(problemas, []);
+  assert.deepEqual(doc.events.map((e) => e.titulo), ['Bazar']);
+  assert.equal(doc.semana.inicio, DOMINGO_ANTES);
+  assert.equal(doc.semana.fin, '2026-09-27');
+  assert.equal(doc.semana.hablada, 'del veinte al veintisiete de septiembre');
+});
+
+test('with lectura.desde a recurring service lands on every matching day of the run', () => {
+  const { doc, problemas } = run([], {
+    lectura: { iglesia: IGLESIA, desde: DOMINGO_ANTES, recurrentes: [{ dia: 'domingo', titulo: 'Culto', hora: '09:00' }] },
+  });
+  assert.deepEqual(problemas, []);
+  assert.deepEqual(doc.events.map((e) => e.fecha), ['2026-09-20', '2026-09-27']);
+  assert.equal(new Set(doc.events.map((e) => e.slug)).size, 2);
+});
+
+test('lectura.desde that is malformed, after the Monday or more than a week early is a problem and is ignored', () => {
+  for (const desde of ['20/09/2026', '2026-09-23', '2026-09-13']) {
+    const { doc, problemas } = run([], { lectura: { iglesia: IGLESIA, desde } });
+    assert.equal(doc.semana.inicio, '2026-09-21', desde);
+    assert.equal(problemas.length, 1, desde);
+    assert.match(problemas[0], /desde/);
+  }
+});
