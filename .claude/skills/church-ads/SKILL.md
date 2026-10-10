@@ -472,7 +472,11 @@ the nearest one first.
   obra social" on a Tuesday was not the Damas Dorcas'). Ask before tagging a calendar event
   with the ministry of the service it may replace.
 - **A flyer the person sends** is that event's image (step 5): its speakers and slogans
-  stay on the image, out of the narration and the record.
+  stay on the image and out of the record. The narration names them only when the person
+  asks ("informa que contaremos con la visita de los pastores…"), and then only as the
+  flyer writes them.
+- **The person edits the script line by line** before the voice: show the whole updated
+  script after each round, never voice until they say so, and keep their wording.
 - **An event that spans non-consecutive days** (Thursday and Saturday): one event per day,
   each with the same image, not one event with a range.
 

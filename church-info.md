@@ -30,4 +30,8 @@
     comité de Evangelismo").
     No repitas "en el Templo" en cada evento: es el lugar de siempre, así que
     solo se menciona el lugar cuando es distinto (virtual, u otra sede).
+    La bienvenida del video de la semana dice "esta es la programación para la
+    semana del ..." (no "estos son nuestros eventos").
+    El video de la semana se publica el sábado: los eventos del domingo
+    siguiente se anuncian como "mañana domingo", no con la fecha.
 

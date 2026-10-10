@@ -32,7 +32,9 @@ section per event (its `slug`, in `events.json` order), and `outro`.
 
 ### intro
 
-"Bienvenidos a *iglesia.nombre*, estos son nuestros eventos *semana.hablada*."
+"Bienvenidos a *iglesia.nombre*, estos son nuestros eventos *semana.hablada*." A church's
+style notes may word it its own way ("esta es la programación para la semana *semana.hablada*");
+the name and `semana.hablada` must still be in it.
 `semana.hablada` is copied verbatim from `events.json` ("del veintiuno al veintisiete de
 septiembre"). If `iglesia.nombre` is `null`, leave the name out and add nothing in its
 place.
@@ -75,7 +77,11 @@ is simply absent; both missing means no outro section.
 
 Avoid "hoy", "mañana", "pasado mañana", "esta noche", "ayer". The video is watched
 on any day of the week, so a relative word is wrong most of the time. Say "el
-viernes".
+viernes". The one exception is a video with a known publishing day that the church
+asks for in its style notes (`church-info.md`) or the person asks for: the week's
+video published on the Saturday before may say "mañana domingo". `validate.mjs` does
+not stop it, so it is your call; never carry it into a service's video, which plays
+on another day.
 
 ## Place
 
