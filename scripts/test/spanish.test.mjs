@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  corrida,
   slugify,
   horaTexto,
   horaHablada,
@@ -87,4 +88,15 @@ test('semanaHablada names both months when the week crosses one', () => {
   assert.equal(semanaHablada('2026-08-31', '2026-09-06'), 'del treinta y uno de agosto al seis de septiembre');
   assert.equal(semanaHablada('2026-10-26', '2026-11-01'), 'del veintiséis de octubre al primero de noviembre');
   assert.equal(semanaHablada('2026-12-28', '2027-01-03'), 'del veintiocho de diciembre al tres de enero');
+});
+
+test('corrida splits a run id into its week and the service day whose video it is', () => {
+  assert.deepEqual(corrida('2026-W42'), { week: '2026-W42', despues: null });
+  assert.deepEqual(corrida('2026-W42-martes'), { week: '2026-W42', despues: 'martes' });
+  assert.deepEqual(corrida('2026-W42-sabado'), { week: '2026-W42', despues: 'sabado' });
+});
+
+test('a run of a single day is named as that day, not as a range', () => {
+  assert.equal(semanaTexto('2026-10-18', '2026-10-18'), 'Domingo 18 de octubre');
+  assert.equal(semanaHablada('2026-10-18', '2026-10-18'), 'del domingo dieciocho de octubre');
 });

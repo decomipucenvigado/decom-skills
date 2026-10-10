@@ -4,6 +4,7 @@
 // scripts/export-stills.mjs), then the combined semana.mp4.
 //
 //   node scripts/render.mjs <week> [slug ...]
+//   node scripts/render.mjs <week>-<weekday>      # a service's video: only semana.mp4
 //
 // With slugs, only those events are rendered and the weekly video is skipped: a
 // reel built from a subset would be a wrong reel. Renders run one after another
@@ -11,7 +12,8 @@
 //
 // Validates first (an error in any delivery or in guion.md stops the run, nothing is
 // rendered), regenerates the ad registry, stages the week's voiceover into
-// video/public/audio/, turns guion.md plus the voice's timing into scene lengths
+// video/public/audio/ and each event's exported image (ad.png) into video/public/imagenes/,
+// turns guion.md plus the voice's timing into scene lengths
 // (core/render-plan.mjs), bundles once, then renders. A week with no voz.mp3 is rendered
 // silent, sized from the words, and reported at the end. REMOTION_BROWSER_EXECUTABLE
 // selects the browser, else Remotion's own download is used.
@@ -27,6 +29,8 @@ import { ROOT, loadEnv, parseArgs, weekDir } from './core/project.mjs';
 import { parseNarracion } from './core/narracion.mjs';
 import { stillFrame, weekPlan } from './core/render-plan.mjs';
 import { stageAudio } from './core/stage-audio.mjs';
+import { stageImages } from './core/stage-images.mjs';
+import { corrida } from './core/spanish.mjs';
 
 loadEnv();
 const [week, ...slugs] = parseArgs(process.argv.slice(2)).positional;
@@ -35,6 +39,8 @@ if (!week) {
   process.exit(1);
 }
 const carpetaSemana = weekDir(week);
+// A service's run (2026-W42-martes) is only its weekly video: its clips would repeat the week's.
+const { week: semanaBase, despues } = corrida(week);
 const eventsPath = join(carpetaSemana, 'events.json');
 if (!existsSync(eventsPath)) {
   console.error(`${eventsPath} not found. Run scripts/normalize.mjs first.`);
@@ -61,16 +67,20 @@ if (conAudio && !existsSync(alineacionPath)) {
   console.error(`voz.mp3 has no voz.alineacion.json, so its timing is unknown. Run: node scripts/tts.mjs --week ${week} --force`);
   process.exit(1);
 }
+// Each event's exported image (ad.png) is what its scene shows; an event without one falls back to its ad component.
+const imagenes = stageImages({ carpeta: carpetaSemana, respaldo: weekDir(semanaBase), publico, slugs: doc.events.map((e) => e.slug) });
+const sinImagen = doc.events.filter((e) => !imagenes[e.slug]).map((e) => e.slug);
 const { sections } = parseNarracion(readFileSync(join(carpetaSemana, 'guion.md'), 'utf8'));
 const plan = weekPlan({
   doc,
   sections,
   alignment: conAudio ? JSON.parse(readFileSync(alineacionPath, 'utf8')) : null,
   hasMusic: existsSync(join(publico, 'music', 'bed.mp3')),
+  imagenes,
   motion: brand.motion,
   fps: brand.video.fps,
 });
-const items = slugs.length ? plan.items.filter((i) => slugs.includes(i.slug)) : plan.items;
+const items = despues ? [] : slugs.length ? plan.items.filter((i) => slugs.includes(i.slug)) : plan.items;
 
 // 3. Bundle once, then render one thing at a time.
 const require = createRequire(join(ROOT, 'video', 'package.json'));
@@ -131,7 +141,7 @@ for (const props of items) {
   });
 }
 
-if (!slugs.length && items.length) {
+if (!slugs.length && plan.items.length) {
   await intentar('semana', async () => {
     const composition = await selectComposition({ ...comun, id: 'WeeklyReel', inputProps: plan.reel });
     console.log(`semana: ${largo(composition)}`);
@@ -149,8 +159,9 @@ if (!slugs.length && items.length) {
 
 // 4. Report.
 const segundos = Math.round((Date.now() - inicio) / 1000);
-console.log(`\n${items.length} event(s) in ${carpetaSemana} (${segundos}s).`);
+console.log(`\n${plan.items.length} event(s) in ${carpetaSemana} (${segundos}s)${despues ? ', weekly video only' : ''}.`);
 if (slugs.length) console.log('Weekly video skipped: it is only built when no slugs are given.');
+if (sinImagen.length) console.log(`No ad.png, shown with its ad component: ${sinImagen.join(', ')}. Run: node scripts/export-stills.mjs ${week}`);
 if (!conAudio) console.log(`No voiceover, rendered silent. Run: node scripts/tts.mjs --week ${week}`);
 if (fallos.length) {
   console.error(`${fallos.length} render(s) failed: ${fallos.map((f) => f.nombre).join(', ')}`);

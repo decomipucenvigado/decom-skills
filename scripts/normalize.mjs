@@ -2,6 +2,11 @@
 // Raw calendar responses + Claude's reading (+ optional overrides) -> out/<week>/events.json
 //
 //   node scripts/normalize.mjs --week 2026-W39 [--overrides path] [raw.json ...]
+//   node scripts/normalize.mjs --week 2026-W39-martes      # the video for Tuesday's service
+//
+// A service's run (`<week>-<weekday>`) keeps only the events after that day. It reads the raw
+// files and the reading of the week's own folder (unless its folder has its own) and the week's
+// overrides, so the person's answers and the slugs (and so the images) stay the same.
 //
 // Raw files default to out/<week>/raw/*.json (the list_events responses saved
 // verbatim). Claude's reading of the titles and church-info.md is out/<week>/lectura.json;
@@ -14,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join, resolve } from 'node:path';
 import { ROOT, parseArgs, printIssues, weekDir } from './core/project.mjs';
 import { normalizeWeek } from './core/normalize.mjs';
+import { corrida } from './core/spanish.mjs';
 import { auditEvents } from './core/audit.mjs';
 
 const { flags, positional } = parseArgs(process.argv.slice(2));
@@ -23,8 +29,11 @@ if (!week || week === true) {
   process.exit(1);
 }
 
+const { week: semana, despues } = corrida(week);
 const dir = weekDir(week);
-const rawDir = join(dir, 'raw');
+const base = weekDir(semana);
+const deLaCorrida = (nombre) => (existsSync(join(dir, nombre)) ? join(dir, nombre) : join(base, nombre));
+const rawDir = deLaCorrida('raw');
 const rawFiles = positional.length
   ? positional.map((p) => resolve(p))
   : existsSync(rawDir)
@@ -35,18 +44,20 @@ if (!rawFiles.length) {
   process.exit(1);
 }
 
-const lecturaPath = join(dir, 'lectura.json');
+const lecturaPath = deLaCorrida('lectura.json');
 const lectura = existsSync(lecturaPath) ? JSON.parse(readFileSync(lecturaPath, 'utf8')) : {};
 
-const overridesPath = flags.overrides ? resolve(flags.overrides) : join(ROOT, 'overrides', `${week}.json`);
+const overridesPath = flags.overrides ? resolve(flags.overrides) : join(ROOT, 'overrides', `${semana}.json`);
 const overrides = existsSync(overridesPath) ? JSON.parse(readFileSync(overridesPath, 'utf8')) : {};
 
 const { doc, problemas } = normalizeWeek({
-  week,
+  week: semana,
+  despues,
   calendars: rawFiles.map((f) => JSON.parse(readFileSync(f, 'utf8'))),
   lectura,
   overrides,
 });
+doc.week = week;
 const { errores, avisos } = auditEvents(doc);
 
 mkdirSync(dir, { recursive: true });
@@ -70,4 +81,4 @@ if (problemas.length || errores.length) {
   process.exit(2);
 }
 const sinHora = avisos.filter((a) => a.regla === 'sin-hora').length;
-console.log(`\nOK: ${doc.events.length} events, ${sinHora} without a time (ads are made without a time; add one in overrides/${week}.json to change that).`);
+console.log(`\nOK: ${doc.events.length} events, ${sinHora} without a time (ads are made without a time; add one in overrides/${semana}.json to change that).`);

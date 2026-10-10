@@ -90,6 +90,16 @@ to `out/<week>/raw/<name>.json`. One file per calendar. The normalizer also drop
 anything outside the week, so a slightly wide window is safe. If the person drops a
 calendar at Checkpoint 1, delete its file from `raw/` and run step 3 again.
 
+**No calendar connector in this session?** Say so in one line (they connect Google Calendar
+in their claude.ai connectors and start a new session) and offer the other way: a
+screenshot of the week in Google Calendar, or the events pasted as text. What the person
+sends is a fact from the user (hard rule 1), so transcribe it into the same
+`raw/<name>.json` shape (`summary`, `timeZone`, `events` with `id`, `summary`, `start`,
+`end`), one card per event, giving each a short made-up `id`, and note in a `nota` key where
+it came from. A truncated title in the screenshot ("Precongreso Juven…") is a doubt for
+Checkpoint 1, never a guess. A day the screenshot does not show (often the last Sunday) is
+asked about too.
+
 ### 3. Normalize, read, normalize
 
 ```bash
@@ -365,18 +375,20 @@ A single-slug render still needs a valid weekly `guion.md`: every clip is a slic
 one narration, so a facts error in another event's line blocks it too.
 
 `render.mjs` validates again, regenerates `video/src/ads/registry.gen.ts`, stages
-the week's `voz.mp3` into `video/public/audio/semana.mp3`, cuts the scenes where the
+the week's `voz.mp3` into `video/public/audio/semana.mp3` and each event's `ad.png` into
+`video/public/imagenes/` (the scene shows that image, the one that gets published; an event
+with no image falls back to its designer's component), cuts the scenes where the
 voice pauses, bundles once, and renders one thing at a time: per event `fotograma.png` (a
 frame of the clip, only to check the video) and `clip.mp4` (its own slice of the
 narration), then `semana.mp4` (an intro card, the events in order with transitions, an
 outro, one continuous narration over all of it; a music bed only if
 `video/public/music/bed.mp3` exists). The images are not made here: they come from the
-export of step 7. Set `REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own
+export of step 7, so export before every render or the video shows a stale image. Set `REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own
 Chromium.
 
 Look at every `out/<week>/<slug>/ad.png` and every `fotograma.png` before calling it done.
-The image is what gets published; the frame is the only look the designers' scenes get, so
-send a bad one back to its designer. Generated output is disposable and is never edited by
+The image is what gets published and what the video shows; a designer's scene appears only
+for an event with no image, so a bad frame there goes back to its designer. Generated output is disposable and is never edited by
 hand: change the source and render again (for an image, the canvas, then read it back and
 export again).
 
@@ -394,6 +406,40 @@ video stands in until the image is done; for you, that frame is `fotograma.png`)
 each event's image took, in words ("la de Ecos del Futuro salió en morado, por ser de
 jóvenes"), naming which of two kinds an event that fits both was given, the designers'
 `avisos` put in plain words, and any word the voice may mispronounce. Always end with the reminder to check every time and date in the images.
+
+### 12. One video per service, once the week's video is approved
+
+The week's video plays on its first day. At each later service of the week the past days
+are no longer news, so once the person approves the week's video, make one more video per
+service day of the run: the video played at Tuesday's service announces only what comes
+after Tuesday (not Tuesday itself), Thursday's only what comes after Thursday, and so on.
+The service days are the weekdays of `church-info.md`'s recurring services, except the
+day the run starts on (for IPUC Envigado Central: martes, jueves and sábado). Skip a day
+with nothing after it.
+
+Each is a run of its own, `<week>-<weekday>` (accent-free: `2026-W42-sabado`), in
+`out/<week>-<weekday>/`:
+
+```bash
+node scripts/normalize.mjs --week 2026-W42-martes   # the week's events after Tuesday
+node scripts/validate.mjs 2026-W42-martes --narracion
+node scripts/tts.mjs --week 2026-W42-martes
+node scripts/render.mjs 2026-W42-martes             # only its semana.mp4
+```
+
+`normalize` reads the week's own raw files, reading and overrides, and keeps the slugs the
+whole week gave each event, so nothing is asked again and every image is the week's
+`ad.png` (`render.mjs` takes it from the week's folder). No designer, canvas or export runs
+again. Its `guion.md` is yours: the intro (the formula of `script.md`, with this run's
+`semana.hablada`), then each remaining event's line copied word for word from the week's
+approved script, changing only an opening that leans on a line no longer there ("Ya el
+domingo…" as the first line), then the outro. Because those lines are already approved,
+the person's approval of the week's video covers these: show them, in the same message as
+the finished videos, rather than asking again. Each costs one voicing; send each
+`semana.mp4` and say which service it is for ("el del martes").
+
+Write the week's run as `desde` asks (§ *Reading the calendar*): the cut is by date, so a
+run that started on the Sunday before keeps its slugs here too.
 
 ## Reading the calendar and church-info.md
 
@@ -415,6 +461,12 @@ read is shown there with where it came from. Write it fresh on every run, from t
   }
 }
 ```
+
+When the person asks for a run that starts before the Monday (on a Saturday, "desde el domingo
+11", so tomorrow's events are announced too), keep the ISO week of the Monday after it and add
+`"desde": "YYYY-MM-DD"` at the top level: the run then starts that day (at most 6 days early),
+its cards are kept, the intro says the longer range, and each recurring service lands on every
+matching day of it.
 
 Every key is optional except `iglesia.nombre` (`validate.mjs` errors without it, so a
 forgotten file cannot silently skip the intro and outro checks). Leave out what the sources
@@ -577,4 +629,5 @@ out/<week>/
   <slug>/{ad.png, fotograma.png, clip.mp4}   ad.png: export-stills.mjs from the canvas;
                            fotograma.png and clip.mp4: render.mjs (Remotion)
   semana.mp4
+out/<week>-<weekday>/      a service's video (step 12): events.json, guion.md, voz.*, semana.mp4
 ```

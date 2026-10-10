@@ -167,7 +167,9 @@ Ask the person for both, one at a time:
 2. **`ELEVEN_LABS_VOICE_ID`** — the ID of the voice they want. If they don't have one
    picked yet, the ElevenLabs MCP connector (`creative_list_voices`) is a good way to
    audition candidates together — pick a Latin-American Spanish voice; PLAN.md §Phase 0
-   for context. This ID is the one thing that is genuinely per-congregation in `.env`;
+   for context. `scripts/voice.json`'s `voiceId`, when set, wins over this one (it is the
+   voice the church chose, version-controlled); clear it there for a congregation with its
+   own voice. This ID is the one thing that is genuinely per-congregation in `.env`;
    the model and voice *settings* are shared and already committed in `scripts/voice.json`
    — do not ask about those unless the person specifically wants a different model or
    stability/similarity setting.

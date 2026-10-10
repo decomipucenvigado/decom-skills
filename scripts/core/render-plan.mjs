@@ -23,12 +23,14 @@ const palabrasDe = (texto) => (texto ? texto.split(/\s+/).filter(Boolean).length
  * @param {{characters: string[], character_start_times_seconds: number[], character_end_times_seconds: number[]}|null} a.alignment
  *   voz.alineacion.json, or null when the week has no voiceover
  * @param {boolean} a.hasMusic
+ * @param {Record<string, string>} [a.imagenes] per slug, its staged image (stage-images.mjs); an event
+ *   without one shows its ad component instead
  * @param {{leadSeconds: number, tailSeconds: number, transitionSeconds: number, outroSeconds: number, wordsPerSecond: number,
  *   slicePadBeforeSeconds: number, slicePadAfterSeconds: number}} a.motion the motion tokens of video/src/brand/tokens.ts
  * @param {number} a.fps
  * @returns {{items: object[], reel: object}} EventAdProps per event, and the WeeklyReelProps
  */
-export function weekPlan({ doc, sections, alignment, hasMusic, motion, fps }) {
+export function weekPlan({ doc, sections, alignment, hasMusic, imagenes = {}, motion, fps }) {
   const tiempos = alignment
     ? sectionTimes(sections, alignment)
     : estimateTimes(sections, { wordsPerSecond: motion.wordsPerSecond, pauseSeconds: motion.transitionSeconds });
@@ -64,6 +66,7 @@ export function weekPlan({ doc, sections, alignment, hasMusic, motion, fps }) {
           }
         : null,
       palabras: palabrasDe(textoDe(event.slug)),
+      imagen: imagenes[event.slug] ?? null,
     };
   });
 

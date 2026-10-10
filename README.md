@@ -3,7 +3,15 @@
 Esta herramienta lee los eventos de la semana en Google Calendar y prepara, para cada
 uno, una **imagen** y un **clip de video**, y escribe **una sola narración en español**
 para toda la semana. Luego junta todo en **un solo video semanal** con una tarjeta de
-introducción, transiciones, la voz de corrido y un cierre.
+introducción, transiciones, la voz de corrido y un cierre. El video muestra las mismas
+imágenes que se publican.
+
+Cuando apruebas el video de la semana, prepara además **un video para cada culto** (por
+ejemplo martes, jueves y sábado): el del martes ya no anuncia lo que pasó ni lo de ese
+mismo día, solo lo que viene después. Quedan en `out/<año>-W<semana>-martes/` y así.
+
+Si en la sesión no está conectado Google Calendar, puedes mandar un pantallazo de la
+semana del calendario o escribir los eventos, y Claude los toma de ahí.
 
 Todo sale en formato horizontal (16:9, 1920x1080), en español de Colombia y hablándole
 al público de **tú**.
@@ -53,7 +61,8 @@ confirmaste.
    ```
 
    Las voces de la biblioteca de ElevenLabs solo se pueden usar por API con un plan de
-   pago. El modelo y los ajustes de la voz están en `scripts/voice.json`.
+   pago. La voz elegida (`voiceId`), el modelo y sus ajustes están en `scripts/voice.json`:
+   para cambiar de voz, cambia ahí el `voiceId`.
 4. **El logo y los colores de la IPUC.** No hay que hacer nada: ya están, y son los de la
    organización, los mismos para todas las congregaciones. El logo está en `brand/logo/` y
    los colores, tomados del manual de identidad (`brand/corporate-brand.md`), en

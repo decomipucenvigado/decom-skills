@@ -85,7 +85,18 @@ export function weekRange(week) {
   return { inicio, fin: addDays(inicio, 6) };
 }
 
+/**
+ * A run id is a week ("2026-W42"), or a week plus the service day whose video it is
+ * ("2026-W42-martes": the video played at Tuesday's service, announcing only what comes after).
+ */
+export function corrida(id) {
+  const m = /^(\d{4}-W\d{2})(?:-([a-z]+))?$/.exec(id ?? '');
+  if (!m) throw new Error(`A run must look like 2026-W39 or 2026-W39-martes, got "${id}"`);
+  return { week: m[1], despues: m[2] ?? null };
+}
+
 export function semanaTexto(inicio, fin) {
+  if (inicio === fin) return `${diaSemana(inicio)[0].toUpperCase()}${diaSemana(inicio).slice(1)} ${partes(inicio).dia} de ${partes(inicio).mes}`;
   const a = partes(inicio);
   const b = partes(fin);
   return a.mes === b.mes
@@ -137,6 +148,7 @@ export const diaHablado = (n) => (n === 1 ? 'primero' : numeroEnPalabras(n));
 
 /** The week range as it is spoken: "del veintiuno al veintisiete de septiembre". */
 export function semanaHablada(inicio, fin) {
+  if (inicio === fin) return `del ${diaSemana(inicio)} ${diaHablado(partes(inicio).dia)} de ${partes(inicio).mes}`;
   const a = partes(inicio);
   const b = partes(fin);
   return a.mes === b.mes

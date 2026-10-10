@@ -25,12 +25,13 @@ const alineacion = (text) => ({
   character_end_times_seconds: [...text].map((_, i) => (i + 1) * 0.5),
 });
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} is not ${b}`);
-const plan = ({ sections = SECCIONES, alignment, hasMusic = false } = {}) =>
+const plan = ({ sections = SECCIONES, alignment, hasMusic = false, imagenes } = {}) =>
   weekPlan({
     doc,
     sections,
     alignment: alignment === undefined ? alineacion(buildNarration(sections).text) : alignment,
     hasMusic,
+    imagenes,
     motion,
     fps,
   });
@@ -114,4 +115,14 @@ test('an event with no section in the script cannot be planned', () => {
 test('the music bed is wired only when the file exists', () => {
   assert.equal(plan({ hasMusic: true }).reel.musicSrc, 'music/bed.mp3');
   assert.equal(plan({ hasMusic: false }).reel.musicSrc, null);
+});
+
+test("an event with an exported image shows it in the video; one without keeps its component", () => {
+  const { items, reel } = plan({ imagenes: { a: 'imagenes/a.png' } });
+  assert.deepEqual(items.map((i) => i.imagen), ['imagenes/a.png', null]);
+  assert.deepEqual(reel.items.map((i) => i.imagen), ['imagenes/a.png', null]);
+});
+
+test('with no images at all every event keeps its component', () => {
+  assert.deepEqual(plan().items.map((i) => i.imagen), [null, null]);
 });

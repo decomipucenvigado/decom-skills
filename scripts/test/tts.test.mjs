@@ -44,6 +44,11 @@ test('resolveCredentials accepts both documented and existing .env names', () =>
   assert.deepEqual(resolveCredentials({}), { apiKey: null, voiceId: null });
 });
 
+test('the voice chosen in voice.json wins over the one in the environment', () => {
+  assert.deepEqual(resolveCredentials({ ELEVEN_LABS_API_KEY: 'k', ELEVEN_LABS_VOICE_ID: 'vieja' }, { voiceId: 'nueva' }), { apiKey: 'k', voiceId: 'nueva' });
+  assert.deepEqual(resolveCredentials({ ELEVEN_LABS_API_KEY: 'k', ELEVEN_LABS_VOICE_ID: 'env' }, {}), { apiKey: 'k', voiceId: 'env' });
+});
+
 const ALINEACION = {
   characters: ['H', 'o', 'l', 'a'],
   character_start_times_seconds: [0, 0.1, 0.2, 0.3],

@@ -8,12 +8,12 @@ import {sceneFrames, voiceSeconds} from './timing';
 import type {EventAdProps} from './types';
 
 /** Single-event composition: exported as fotograma.png (a still) and clip.mp4. It plays its own slice of the week's narration. */
-export const EventAd: React.FC<EventAdProps> = ({slug, event, iglesia, voz}) => {
+export const EventAd: React.FC<EventAdProps> = ({slug, event, iglesia, voz, imagen}) => {
   const {fps} = useVideoConfig();
   return (
     <IglesiaProvider iglesia={iglesia}>
       <AbsoluteFill>
-        <AdScene slug={slug} event={event} iglesia={iglesia} />
+        <AdScene slug={slug} event={event} iglesia={iglesia} imagen={imagen} />
         {voz ? (
           <Sequence from={Math.round(brand.motion.leadSeconds * fps)}>
             <Html5Audio src={staticFile(voz.src)} trimBefore={Math.round(voz.fromSec * fps)} trimAfter={Math.round(voz.toSec * fps)} />

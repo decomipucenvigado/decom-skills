@@ -22,11 +22,11 @@ another kind (the ministry is checked first).
 | Jóvenes | ministry Jóvenes or Adolescentes; title says jóvenes, juvenil or adolescentes | violet `#4A1A8C` | gold `#F2B53A` |
 | Evangelismo | ministry Evangelismo; title says evangelístico, evangelismo or campaña | amber `#F5A623` | navy `#0D2A5E` (also the text) |
 | Enseñanza | title says oración, enseñanza or escuela dominical | teal `#0B6668` | pale teal `#D5F0EC` |
-| Ayuno | title says ayuno | deep indigo | muted gold |
+| Ayuno | title says ayuno | deep indigo `#22195A` | muted gold `#C9A54E` |
 | General | everything else | IPUC blue `#00338D` | cyan `#009FDA` |
 
 These are the shades the W40 images used; keep them, so each kind's color is the same
-every week. Ayuno has not been used yet: pick its shades once, then record them here.
+every week. The Ayuno shades were picked in W42.
 Text is white on the dark fields and navy `#0D2A5E` on the amber field.
 
 ## What does not change
