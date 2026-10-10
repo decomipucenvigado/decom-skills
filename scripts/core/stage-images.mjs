@@ -5,7 +5,17 @@
 // show last week's date.
 
 import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
+
+const TIPOS = ['png', 'jpg', 'jpeg', 'webp'];
+
+/**
+ * An image the person supplied for an event (their own flyer), saved as out/<run>/aportadas/<slug>.<ext>.
+ * It is the person's, so it is shown as is: no canvas artboard and no text audit (export-stills skips it).
+ */
+export function imagenAportada(carpeta, slug) {
+  return TIPOS.map((t) => join(carpeta, 'aportadas', `${slug}.${t}`)).find(existsSync) ?? null;
+}
 
 /**
  * @param {{carpeta: string, respaldo?: string, publico: string, slugs: string[]}} a the run folder
@@ -18,11 +28,14 @@ export function stageImages({ carpeta, respaldo, publico, slugs }) {
   rmSync(destino, { recursive: true, force: true });
   const imagenes = {};
   for (const slug of slugs) {
-    const origen = [carpeta, respaldo].filter(Boolean).map((c) => join(c, slug, 'ad.png')).find(existsSync);
+    const carpetas = [carpeta, respaldo].filter(Boolean);
+    const origen =
+      carpetas.map((c) => imagenAportada(c, slug)).find(Boolean) ?? carpetas.map((c) => join(c, slug, 'ad.png')).find(existsSync);
     if (!origen) continue;
+    const nombre = `${slug}${extname(origen)}`;
     mkdirSync(destino, { recursive: true });
-    copyFileSync(origen, join(destino, `${slug}.png`));
-    imagenes[slug] = `imagenes/${slug}.png`;
+    copyFileSync(origen, join(destino, nombre));
+    imagenes[slug] = `imagenes/${nombre}`;
   }
   return imagenes;
 }

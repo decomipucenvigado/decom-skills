@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs, printIssues, weekDir } from './core/project.mjs';
 import { resolveBrowser } from './core/cdp.mjs';
+import { imagenAportada } from './core/stage-images.mjs';
 import { exportStills } from './core/export-stills.mjs';
 
 const USO = 'usage: node scripts/export-stills.mjs <week> [slug ...] [--dir path]';
@@ -41,7 +42,11 @@ if (!existsSync(dir)) {
   console.error(`${dir} not found. Publish the week's canvas and read it back to out/${week}/imagenes/ first.`);
   process.exit(1);
 }
-const doc = JSON.parse(readFileSync(eventsPath, 'utf8'));
+// An event with an image the person supplied (aportadas/<slug>.*) has no artboard: it is left out here.
+const semana = JSON.parse(readFileSync(eventsPath, 'utf8'));
+const aportadas = semana.events.filter((e) => imagenAportada(carpeta, e.slug)).map((e) => e.slug);
+const doc = { ...semana, events: semana.events.filter((e) => !aportadas.includes(e.slug)) };
+if (aportadas.length) console.log(`supplied by the person, not exported: ${aportadas.join(', ')}`);
 
 let executable;
 try {

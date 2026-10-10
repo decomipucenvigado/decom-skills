@@ -280,6 +280,15 @@ yourself.
   pages). Then `list` with `scope: "assets"` and `read` with `path` (singular), once per
   asset, which saves `<id>.<ext>` at the root of `out_dir`.
 
+**An image the person sends for an event** (the ministry's own flyer) is used as that
+event's image as is: save it as `out/<week>/aportadas/<slug>.<png|jpg|jpeg|webp>` (one copy
+per slug when it covers two days), give the event no artboard, and the video shows it
+(`render.mjs`); `export-stills.mjs` leaves that event out of its audit. Its words are the
+person's (hard rule 1), but the event record still follows the usual reading: the
+narration states only what `events.json` holds (not the speakers' names on the flyer), and a
+time the flyer does not give stays out. The event still needs its `video/src/ads/<slug>.tsx`
+(the plain template wrapper is enough: it is only the fallback).
+
 If the canvas cannot be published or read back, the video is unaffected: carry on, there
 is no `ad.png` this week, and step 11 says so. Remove any `out/<week>/<slug>/ad.png` left
 from an earlier run (an earlier export, or a frame of an earlier render), so no old image

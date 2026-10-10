@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { stageImages } from '../core/stage-images.mjs';
+import { imagenAportada, stageImages } from '../core/stage-images.mjs';
 
 /** A fresh week folder (out/<week>) and a fresh video/public, removed after the test. */
 function sandbox(t) {
@@ -51,4 +51,22 @@ test("a service's video takes each image from the whole week's folder when its o
   const imagenes = stageImages({ carpeta: parte, respaldo: carpeta, publico, slugs: ['culto'] });
   assert.deepEqual(imagenes, { culto: 'imagenes/culto.png' });
   assert.equal(readFileSync(join(publico, 'imagenes', 'culto.png'), 'utf8'), 'de la semana');
+});
+
+test('an image the person supplied (aportadas/<slug>.jpg) wins over the canvas export and keeps its type', (t) => {
+  const { carpeta, publico, conImagen } = sandbox(t);
+  conImagen('precongreso', 'del lienzo');
+  mkdirSync(join(carpeta, 'aportadas'));
+  writeFileSync(join(carpeta, 'aportadas', 'precongreso.jpg'), 'de la persona');
+  const imagenes = stageImages({ carpeta, publico, slugs: ['precongreso'] });
+  assert.deepEqual(imagenes, { precongreso: 'imagenes/precongreso.jpg' });
+  assert.equal(readFileSync(join(publico, 'imagenes', 'precongreso.jpg'), 'utf8'), 'de la persona');
+});
+
+test("imagenAportada finds a supplied image by slug, and nothing for an event without one", (t) => {
+  const { carpeta } = sandbox(t);
+  mkdirSync(join(carpeta, 'aportadas'));
+  writeFileSync(join(carpeta, 'aportadas', 'culto.png'), 'x');
+  assert.equal(imagenAportada(carpeta, 'culto'), join(carpeta, 'aportadas', 'culto.png'));
+  assert.equal(imagenAportada(carpeta, 'ayuno'), null);
 });

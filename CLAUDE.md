@@ -152,7 +152,9 @@ tracked in this repo.
   place and the call to action). The video shows that same image: `render.mjs`
   stages each `ad.png` into `video/public/imagenes/` and the event's scene plays it
   (with a slow push-in) instead of the ad component, which is only the fallback for
-  an event with no image. So export before rendering. The frame `render.mjs` writes
+  an event with no image. So export before rendering. An image the person supplies
+  (`out/<week>/aportadas/<slug>.<ext>`, their own flyer) replaces the canvas for that
+  event: it has no artboard and `export-stills.mjs` skips it. The frame `render.mjs` writes
   is `fotograma.png`, only to check the video.
 - Slugs are lowercase, accent-stripped, hyphenated: `Charla familias` ->
   `charla-familias`.
