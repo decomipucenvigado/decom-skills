@@ -222,10 +222,12 @@ function registroFinal(e) {
  *   time and place win over it. Its `recurrentes` are the church's recurring services of the week (`dia`,
  *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own. Its
  *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier.
+ * @param {string|null} [args.despues] a weekday: keep only the events after that day of the week (the
+ *   video played at that day's service); slugs are still those of the whole run
  * @param {Record<string, object>} [args.overrides] human answers keyed by slug
  * @returns {{doc: object, problemas: string[]}}
  */
-export function normalizeWeek({ week, calendars, lectura = {}, overrides = {} }) {
+export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, despues = null }) {
   const problemas = [];
   const { inicio: lunes, fin } = weekRange(week);
   const inicio = inicioDeLaCorrida(lectura.desde, lunes, problemas);
@@ -298,11 +300,23 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {} })
   eventos = aplicarOverrides(eventos, overrides, problemas, descartados);
   eventos.sort(comparar);
 
+  // A service's video keeps only what comes after that day, with the slugs the whole run gave them.
+  let inicioTexto = inicio;
+  if (despues) {
+    const corte = fechasDelDia(despues, lunes, fin)[0];
+    if (!corte) {
+      problemas.push(`despues "${despues}" is not a weekday, the whole run is kept`);
+    } else {
+      eventos = eventos.filter((e) => e.fecha > corte);
+      inicioTexto = addDays(corte, 1);
+    }
+  }
+
   const iglesia = lectura.iglesia ?? {};
   const nombres = [...new Set(calendars.map((c) => c.summary).filter(Boolean))];
   const doc = {
     week,
-    semana: { inicio, fin, texto: semanaTexto(inicio, fin), hablada: semanaHablada(inicio, fin) },
+    semana: { inicio: inicioTexto, fin, texto: semanaTexto(inicioTexto, fin), hablada: semanaHablada(inicioTexto, fin) },
     calendar: nombres.join(' + '),
     timezone: calendars[0]?.timeZone ?? null,
     iglesia: {

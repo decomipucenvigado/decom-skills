@@ -42,3 +42,13 @@ test('a week with no images stages nothing', (t) => {
   const { carpeta, publico } = sandbox(t);
   assert.deepEqual(stageImages({ carpeta, publico, slugs: ['culto'] }), {});
 });
+
+test("a service's video takes each image from the whole week's folder when its own has none", (t) => {
+  const { carpeta, publico, conImagen } = sandbox(t);
+  conImagen('culto', 'de la semana');
+  const parte = join(carpeta, '..', '2026-W39-martes');
+  mkdirSync(parte, { recursive: true });
+  const imagenes = stageImages({ carpeta: parte, respaldo: carpeta, publico, slugs: ['culto'] });
+  assert.deepEqual(imagenes, { culto: 'imagenes/culto.png' });
+  assert.equal(readFileSync(join(publico, 'imagenes', 'culto.png'), 'utf8'), 'de la semana');
+});

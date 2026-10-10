@@ -546,3 +546,31 @@ test('lectura.desde that is malformed, after the Monday or more than a week earl
     assert.match(problemas[0], /desde/);
   }
 });
+
+// A service's video ("despues": the video played at Tuesday's service) announces only what comes after that day.
+test('despues keeps only the events after that weekday, with the slugs the whole week gave them', () => {
+  const { doc, problemas } = run(
+    [allDay('Lunes', '2026-09-21', '2026-09-22'), allDay('Martes', '2026-09-22', '2026-09-23'), allDay('Jueves', '2026-09-24', '2026-09-25')],
+    { lectura: { iglesia: IGLESIA, recurrentes: [{ dia: 'domingo', titulo: 'Culto', hora: '09:00' }] }, despues: 'martes' },
+  );
+  assert.deepEqual(problemas, []);
+  assert.deepEqual(doc.events.map((e) => e.slug), ['jueves', 'servicio-domingo-0900']);
+  assert.equal(doc.semana.inicio, '2026-09-23');
+  assert.equal(doc.semana.hablada, 'del veintitrés al veintisiete de septiembre');
+});
+
+test('despues keeps the slugs of a run that starts early, so the images of the whole run still match', () => {
+  const { doc } = run([], {
+    lectura: { iglesia: IGLESIA, desde: '2026-09-20', recurrentes: [{ dia: 'domingo', titulo: 'Culto', hora: '09:00' }] },
+    despues: 'jueves',
+  });
+  assert.deepEqual(doc.events.map((e) => e.fecha), ['2026-09-27']);
+  assert.equal(doc.events[0].slug, 'servicio-domingo-0900-domingo-2');
+});
+
+test('despues that is not a weekday is a problem and keeps the whole run', () => {
+  const { doc, problemas } = run([allDay('Lunes', '2026-09-21', '2026-09-22')], { lectura: { iglesia: IGLESIA }, despues: 'marte' });
+  assert.equal(doc.events.length, 1);
+  assert.equal(problemas.length, 1);
+  assert.match(problemas[0], /marte/);
+});

@@ -90,6 +90,16 @@ to `out/<week>/raw/<name>.json`. One file per calendar. The normalizer also drop
 anything outside the week, so a slightly wide window is safe. If the person drops a
 calendar at Checkpoint 1, delete its file from `raw/` and run step 3 again.
 
+**No calendar connector in this session?** Say so in one line (they connect Google Calendar
+in their claude.ai connectors and start a new session) and offer the other way: a
+screenshot of the week in Google Calendar, or the events pasted as text. What the person
+sends is a fact from the user (hard rule 1), so transcribe it into the same
+`raw/<name>.json` shape (`summary`, `timeZone`, `events` with `id`, `summary`, `start`,
+`end`), one card per event, giving each a short made-up `id`, and note in a `nota` key where
+it came from. A truncated title in the screenshot ("Precongreso Juven…") is a doubt for
+Checkpoint 1, never a guess. A day the screenshot does not show (often the last Sunday) is
+asked about too.
+
 ### 3. Normalize, read, normalize
 
 ```bash
@@ -397,6 +407,40 @@ each event's image took, in words ("la de Ecos del Futuro salió en morado, por 
 jóvenes"), naming which of two kinds an event that fits both was given, the designers'
 `avisos` put in plain words, and any word the voice may mispronounce. Always end with the reminder to check every time and date in the images.
 
+### 12. One video per service, once the week's video is approved
+
+The week's video plays on its first day. At each later service of the week the past days
+are no longer news, so once the person approves the week's video, make one more video per
+service day of the run: the video played at Tuesday's service announces only what comes
+after Tuesday (not Tuesday itself), Thursday's only what comes after Thursday, and so on.
+The service days are the weekdays of `church-info.md`'s recurring services, except the
+day the run starts on (for IPUC Envigado Central: martes, jueves and sábado). Skip a day
+with nothing after it.
+
+Each is a run of its own, `<week>-<weekday>` (accent-free: `2026-W42-sabado`), in
+`out/<week>-<weekday>/`:
+
+```bash
+node scripts/normalize.mjs --week 2026-W42-martes   # the week's events after Tuesday
+node scripts/validate.mjs 2026-W42-martes --narracion
+node scripts/tts.mjs --week 2026-W42-martes
+node scripts/render.mjs 2026-W42-martes             # only its semana.mp4
+```
+
+`normalize` reads the week's own raw files, reading and overrides, and keeps the slugs the
+whole week gave each event, so nothing is asked again and every image is the week's
+`ad.png` (`render.mjs` takes it from the week's folder). No designer, canvas or export runs
+again. Its `guion.md` is yours: the intro (the formula of `script.md`, with this run's
+`semana.hablada`), then each remaining event's line copied word for word from the week's
+approved script, changing only an opening that leans on a line no longer there ("Ya el
+domingo…" as the first line), then the outro. Because those lines are already approved,
+the person's approval of the week's video covers these: show them, in the same message as
+the finished videos, rather than asking again. Each costs one voicing; send each
+`semana.mp4` and say which service it is for ("el del martes").
+
+Write the week's run as `desde` asks (§ *Reading the calendar*): the cut is by date, so a
+run that started on the Sunday before keeps its slugs here too.
+
 ## Reading the calendar and church-info.md
 
 `church-info.md` and the calendar titles are typed by non-technical staff: any layout,
@@ -585,4 +629,5 @@ out/<week>/
   <slug>/{ad.png, fotograma.png, clip.mp4}   ad.png: export-stills.mjs from the canvas;
                            fotograma.png and clip.mp4: render.mjs (Remotion)
   semana.mp4
+out/<week>-<weekday>/      a service's video (step 12): events.json, guion.md, voz.*, semana.mp4
 ```

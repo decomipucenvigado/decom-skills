@@ -8,17 +8,18 @@ import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * @param {{carpeta: string, publico: string, slugs: string[]}} a the week folder (out/<week>),
- *   video/public and the week's slugs
+ * @param {{carpeta: string, respaldo?: string, publico: string, slugs: string[]}} a the run folder
+ *   (out/<run>), the whole week's folder to fall back on (a service's video reuses its images),
+ *   video/public and the run's slugs
  * @returns {Record<string, string>} per slug with an image, its path under public/
  */
-export function stageImages({ carpeta, publico, slugs }) {
+export function stageImages({ carpeta, respaldo, publico, slugs }) {
   const destino = join(publico, 'imagenes');
   rmSync(destino, { recursive: true, force: true });
   const imagenes = {};
   for (const slug of slugs) {
-    const origen = join(carpeta, slug, 'ad.png');
-    if (!existsSync(origen)) continue;
+    const origen = [carpeta, respaldo].filter(Boolean).map((c) => join(c, slug, 'ad.png')).find(existsSync);
+    if (!origen) continue;
     mkdirSync(destino, { recursive: true });
     copyFileSync(origen, join(destino, `${slug}.png`));
     imagenes[slug] = `imagenes/${slug}.png`;

@@ -55,9 +55,10 @@ export function cacheKey({ text, voice, voiceId }) {
 }
 
 /** Accepts the names CLAUDE.md documents and the ones already used in .env. */
-export function resolveCredentials(env) {
+/** The key comes from the environment; the voice is the one scripts/voice.json names, else the environment's. */
+export function resolveCredentials(env, voice = {}) {
   return {
     apiKey: env.ELEVENLABS_API_KEY || env.ELEVEN_LABS_API_KEY || null,
-    voiceId: env.ELEVENLABS_VOICE_ID || env.ELEVEN_LABS_VOICE_ID || null,
+    voiceId: voice.voiceId || env.ELEVENLABS_VOICE_ID || env.ELEVEN_LABS_VOICE_ID || null,
   };
 }

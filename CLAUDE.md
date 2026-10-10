@@ -79,6 +79,7 @@ node scripts/validate.mjs 2026-W39 [slug] [--narracion]   # audit events.json, e
 node scripts/gen-registry.mjs                 # rebuild video/src/ads/registry.gen.ts
 node scripts/tts.mjs --week 2026-W39            # the week's one voiceover (costs money)
 node scripts/render.mjs 2026-W39 [slug]       # frames (fotograma.png), clips, then semana.mp4
+node scripts/render.mjs 2026-W39-martes       # a service's video (events after Tuesday), after normalize/tts of that run
 node scripts/export-stills.mjs 2026-W39 [slug ...] [--dir path]   # canvas -> out/<week>/<slug>/ad.png
 node --test scripts/test/*.test.mjs           # unit tests (use the glob)
 
@@ -108,8 +109,9 @@ tracked in this repo.
   compute the RMS in Node.
 - `.env` (git-ignored) holds `ELEVEN_LABS_API_KEY` and `ELEVEN_LABS_VOICE_ID`;
   `scripts/core/tts.mjs` also accepts the `ELEVENLABS_*` spelling. Never print
-  their values. The voice ID lives there, while the model and voice settings are
-  in `scripts/voice.json` (version-controlled). TTS goes through
+  their values. The voice the church chose, its model and its settings are in
+  `scripts/voice.json` (version-controlled; its `voiceId` wins over the
+  environment's, which is only the fallback when it names none). TTS goes through
   `scripts/tts.mjs` against the REST API — not the MCP connector — so that a past
   week re-renders identically. Motif image generation is different: it is optional,
   asked about once a run (`.claude/skills/church-ads/SKILL.md` step 4), and goes

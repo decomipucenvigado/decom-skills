@@ -8,7 +8,8 @@
 // carries per-character timing, which render.mjs turns into scene cuts. It refuses to
 // bill while validate.mjs reports errors. Unchanged text and settings reuse the existing
 // files instead of calling the API again. Model and voice settings are in
-// scripts/voice.json; the API key and voice ID come from the environment or .env.
+// scripts/voice.json, and so is the voice (`voiceId`; the environment's only when it names none);
+// the API key comes from the environment or .env.
 //
 // Exit 0: audio ready. Exit 1: usage or configuration problem. Exit 2: the script has
 // errors. Exit 3: the service could not be reached or refused; the week is then
@@ -52,7 +53,7 @@ if (!text) {
 }
 
 const voice = JSON.parse(readFileSync(join(ROOT, 'scripts', 'voice.json'), 'utf8'));
-const { apiKey, voiceId } = resolveCredentials(process.env);
+const { apiKey, voiceId } = resolveCredentials(process.env, voice);
 if (!apiKey || !voiceId) {
   console.error('Missing ElevenLabs credentials: set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID (or the ELEVEN_LABS_* names) in the environment or .env.');
   process.exit(1);
