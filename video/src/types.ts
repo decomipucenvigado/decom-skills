@@ -50,6 +50,8 @@ export type EventAdProps = {
   voz: {src: string; fromSec: number; toSec: number} | null;
   /** Words of this event's line in guion.md; sizes the clip when there is no voiceover. */
   palabras: number;
+  /** Path under public/ of the event's exported image (ad.png), shown instead of its ad component; null when it has none. */
+  imagen?: string | null;
 };
 
 export type WeeklyReelProps = {

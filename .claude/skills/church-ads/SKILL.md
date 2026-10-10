@@ -365,18 +365,20 @@ A single-slug render still needs a valid weekly `guion.md`: every clip is a slic
 one narration, so a facts error in another event's line blocks it too.
 
 `render.mjs` validates again, regenerates `video/src/ads/registry.gen.ts`, stages
-the week's `voz.mp3` into `video/public/audio/semana.mp3`, cuts the scenes where the
+the week's `voz.mp3` into `video/public/audio/semana.mp3` and each event's `ad.png` into
+`video/public/imagenes/` (the scene shows that image, the one that gets published; an event
+with no image falls back to its designer's component), cuts the scenes where the
 voice pauses, bundles once, and renders one thing at a time: per event `fotograma.png` (a
 frame of the clip, only to check the video) and `clip.mp4` (its own slice of the
 narration), then `semana.mp4` (an intro card, the events in order with transitions, an
 outro, one continuous narration over all of it; a music bed only if
 `video/public/music/bed.mp3` exists). The images are not made here: they come from the
-export of step 7. Set `REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own
+export of step 7, so export before every render or the video shows a stale image. Set `REMOTION_BROWSER_EXECUTABLE` where Remotion cannot download its own
 Chromium.
 
 Look at every `out/<week>/<slug>/ad.png` and every `fotograma.png` before calling it done.
-The image is what gets published; the frame is the only look the designers' scenes get, so
-send a bad one back to its designer. Generated output is disposable and is never edited by
+The image is what gets published and what the video shows; a designer's scene appears only
+for an event with no image, so a bad frame there goes back to its designer. Generated output is disposable and is never edited by
 hand: change the source and render again (for an image, the canvas, then read it back and
 export again).
 
