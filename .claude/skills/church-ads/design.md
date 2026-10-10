@@ -103,8 +103,9 @@ Every fact on screen comes from `event` or `iglesia`, and nothing else exists.
 - Drive everything with `useCurrentFrame()` + `interpolate()` (or `spring()`); the
   helpers `useEnter` and `Reveal` do this. CSS `transition`, `animation`,
   `@keyframes` and Tailwind `animate-*` do not render and are rejected.
-- The still `ad.png` is taken about 60% into the clip. All text must be fully in by
-  then. In a standalone clip the voiceover starts after `brand.motion.leadSeconds`;
+- The still `fotograma.png` is taken about 60% into the clip. It is only a frame for
+  checking the video, not the event's image (`ad.png` comes from the week's Claude
+  Design canvas). All text must be fully in by then. In a standalone clip the voiceover starts after `brand.motion.leadSeconds`;
   inside the reel the scene is cut in the pause before its line, so the speech starts
   at the scene boundary. Either way the key information should be readable well before
   the narration ends.

@@ -4,13 +4,13 @@
 import { cuts, sceneFrames } from './escenas.mjs';
 import { estimateTimes, sectionTimes } from './narracion.mjs';
 
-const STILL_AT = 0.6; // ad.png is taken this far into the clip, once the animation has settled
+const STILL_AT = 0.6; // fotograma.png is taken this far into the clip, once the animation has settled
 const MUSIC_SRC = 'music/bed.mp3';
 
 /** The week's single voiceover, staged by stage-audio.mjs. */
 export const NARRATION_SRC = 'audio/semana.mp3';
 
-/** The frame to export as ad.png: about 60% in, always inside the clip. */
+/** The frame to export as fotograma.png: about 60% in, always inside the clip. */
 export const stillFrame = (durationInFrames) => Math.max(0, Math.min(durationInFrames - 1, Math.round(durationInFrames * STILL_AT)));
 
 const palabrasDe = (texto) => (texto ? texto.split(/\s+/).filter(Boolean).length : 0);
