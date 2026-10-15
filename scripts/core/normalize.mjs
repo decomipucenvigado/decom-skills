@@ -324,7 +324,13 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
   const nombres = [...new Set(calendars.map((c) => c.summary).filter(Boolean))];
   const doc = {
     week,
-    semana: { inicio: inicioTexto, fin, texto: semanaTexto(inicioTexto, fin), hablada: semanaHablada(inicioTexto, fin) },
+    semana: {
+      inicio: inicioTexto,
+      fin,
+      texto: semanaTexto(inicioTexto, fin),
+      hablada: semanaHablada(inicioTexto, fin),
+      ...(despues ? { resto: true } : {}),
+    },
     calendar: nombres.join(' + '),
     timezone: calendars[0]?.timeZone ?? null,
     iglesia: {

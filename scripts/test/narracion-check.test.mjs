@@ -57,6 +57,13 @@ test('the intro must say the week exactly as events.json speaks it', () => {
   assert.deepEqual(reglas(r), ['intro-sin-semana']);
 });
 
+test("a service's video may say 'el resto de la semana' instead of the dates; the whole week's may not", () => {
+  const intro = (texto) => md('## intro', texto, '## oracion-virtual', ORACION, '## outro', OUTRO);
+  const resto = 'Bienvenidos a Iglesia Ejemplo, esta es la programación para el resto de la semana.';
+  assert.deepEqual(reglas(run(intro(resto), { ...UNO, semana: { ...UNO.semana, resto: true } })), []);
+  assert.deepEqual(reglas(run(intro(resto), UNO)), ['intro-sin-semana']);
+});
+
 test('the intro speaks dates as words, not digits', () => {
   const r = run(md('## intro', 'Bienvenidos a Iglesia Ejemplo, estos son nuestros eventos del 21 al 27 de septiembre.', '## oracion-virtual', ORACION, '## outro', OUTRO), UNO);
   assert.ok(reglas(r).includes('intro-cifras'));

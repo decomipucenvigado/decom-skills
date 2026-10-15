@@ -444,7 +444,8 @@ The weekday names its first occurrence in the run, so in a run that starts on th
 whole week gave each event, so nothing is asked again and every image is the week's
 `ad.png` (`render.mjs` takes it from the week's folder). No designer, canvas or export runs
 again. Its `guion.md` is yours: the intro (the formula of `script.md`, with this run's
-`semana.hablada`), then each remaining event's line copied word for word from the week's
+`semana.hablada`, or "el resto de la semana" in its place, which `validate.mjs` accepts only
+in a service's run and which IPUC Envigado Central asks for), then each remaining event's line copied word for word from the week's
 approved script, changing only an opening that leans on a line no longer there ("Ya el
 domingo…" as the first line), then the outro. Because those lines are already approved,
 the person's approval of the week's video covers these: show them, in the same message as

@@ -557,6 +557,7 @@ test('despues keeps only the events after that weekday, with the slugs the whole
   assert.deepEqual(doc.events.map((e) => e.slug), ['jueves', 'servicio-domingo-0900']);
   assert.equal(doc.semana.inicio, '2026-09-23');
   assert.equal(doc.semana.hablada, 'del veintitrés al veintisiete de septiembre');
+  assert.equal(doc.semana.resto, true);
 });
 
 test('despues keeps the slugs of a run that starts early, so the images of the whole run still match', () => {
