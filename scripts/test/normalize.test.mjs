@@ -599,3 +599,22 @@ test("on a service day, despues keeps that day's events that start after its las
   assert.deepEqual(doc.events.map((e) => `${e.fecha} ${e.titulo}`), ['2026-09-20 Vigilia', '2026-09-27 Culto', '2026-09-27 Escuela']);
   assert.equal(doc.semana.hablada, 'del veinte al veintisiete de septiembre');
 });
+
+test('lectura.hasta ends the run before the Sunday: later days drop out and the week text says it', () => {
+  const { doc, problemas } = run([allDay('Sabado', '2026-09-26', '2026-09-27'), allDay('Domingo', '2026-09-27', '2026-09-28')], {
+    lectura: { iglesia: IGLESIA, hasta: '2026-09-26', recurrentes: [{ dia: 'domingo', titulo: 'Culto', hora: '09:00' }] },
+  });
+  assert.deepEqual(problemas, []);
+  assert.deepEqual(doc.events.map((e) => e.titulo), ['Sabado']);
+  assert.equal(doc.semana.fin, '2026-09-26');
+  assert.equal(doc.semana.hablada, 'del veintiuno al veintiséis de septiembre');
+});
+
+test('lectura.hasta outside the run is a problem and is ignored', () => {
+  for (const hasta of ['2026-09-28', '2026-09-20', 'sabado']) {
+    const { doc, problemas } = run([], { lectura: { iglesia: IGLESIA, hasta } });
+    assert.equal(doc.semana.fin, '2026-09-27', hasta);
+    assert.equal(problemas.length, 1, hasta);
+    assert.match(problemas[0], /hasta/);
+  }
+});

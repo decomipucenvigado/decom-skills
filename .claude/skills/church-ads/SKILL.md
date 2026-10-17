@@ -506,7 +506,8 @@ When the person asks for a run that starts before the Monday (on a Saturday, "de
 11", so tomorrow's events are announced too), keep the ISO week of the Monday after it and add
 `"desde": "YYYY-MM-DD"` at the top level: the run then starts that day (at most 6 days early),
 its cards are kept, the intro says the longer range, and each recurring service lands on every
-matching day of it.
+matching day of it. Likewise `"hasta": "YYYY-MM-DD"` ends the run before its Sunday ("solo hasta el sábado 24"):
+later cards and services drop out and the intro says the shorter range.
 
 Every key is optional except `iglesia.nombre` (`validate.mjs` errors without it, so a
 forgotten file cannot silently skip the intro and outro checks). Leave out what the sources

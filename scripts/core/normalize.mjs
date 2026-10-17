@@ -82,6 +82,16 @@ function inicioDeLaCorrida(desde, lunes, problemas) {
   return desde;
 }
 
+/** The last day of the run: the week's Sunday unless the reading's `hasta` ends it earlier (a video up to the Saturday). */
+function finDeLaCorrida(hasta, inicio, domingo, problemas) {
+  if (hasta === undefined) return domingo;
+  if (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta) || hasta > domingo || hasta < inicio) {
+    problemas.push(`lectura hasta "${hasta}" must be a YYYY-MM-DD date from the run's first day ${inicio} to its Sunday ${domingo}, ignored`);
+    return domingo;
+  }
+  return hasta;
+}
+
 /**
  * A recurring service Claude read from church-info.md, placed on each day of the run that is its weekday
  * (one, unless `desde` starts the run early). Whether a
@@ -89,11 +99,12 @@ function inicioDeLaCorrida(desde, lunes, problemas) {
  * anything. The slug comes from the day and start time so the same service keeps it from week to week.
  */
 function eventosRecurrentes(servicio, inicio, fin, problemas) {
-  const fechas = fechasDelDia(servicio.dia, inicio, fin);
-  if (!fechas.length) {
+  if (typeof servicio.dia !== 'string' || !nombreDia(servicio.dia.trim())) {
     problemas.push(`lectura recurrentes: dia "${servicio.dia}" is not a weekday, service ignored`);
     return [];
   }
+  const fechas = fechasDelDia(servicio.dia, inicio, fin); // none when `hasta` ends the run before that day
+  if (!fechas.length) return [];
   const titulo = servicio.titulo?.trim();
   if (!titulo) {
     problemas.push(`lectura recurrentes (${servicio.dia}): a service needs a titulo, ignored`);
@@ -221,7 +232,8 @@ function registroFinal(e) {
  *   `horaFuente`, `lugar` + `lugarFuente`, `ministerio`, `modalidad`, and optional `horaNota`. The card's own
  *   time and place win over it. Its `recurrentes` are the church's recurring services of the week (`dia`,
  *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own. Its
- *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier.
+ *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier, and `hasta`
+ *   (YYYY-MM-DD, not after the Sunday) ends it earlier.
  * @param {string|null} [args.despues] a weekday: keep only the events after that day's service (the video
  *   played at it): the days after its first occurrence in the run, and that day's own events that start after
  *   its last recurring service; slugs are still those of the whole run
@@ -230,8 +242,9 @@ function registroFinal(e) {
  */
 export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, despues = null }) {
   const problemas = [];
-  const { inicio: lunes, fin } = weekRange(week);
+  const { inicio: lunes, fin: domingo } = weekRange(week);
   const inicio = inicioDeLaCorrida(lectura.desde, lunes, problemas);
+  const fin = finDeLaCorrida(lectura.hasta, inicio, domingo, problemas);
   const ids = new Set();
   const descartados = [];
   let eventos = [];
