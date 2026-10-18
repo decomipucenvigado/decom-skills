@@ -213,6 +213,7 @@ function registroFinal(e) {
     horaFuente: e.hora ? e.horaFuente : null,
   });
   if (!e.hora && e.horaNota) r.horaNota = e.horaNota;
+  if (!e.hora && e.horas?.length) r.horas = e.horas;
   Object.assign(r, {
     lugar: e.lugar,
     lugarFuente: e.lugarFuente,
@@ -233,7 +234,8 @@ function registroFinal(e) {
  *   time and place win over it. Its `recurrentes` are the church's recurring services of the week (`dia`,
  *   `titulo`, and optional `hora`, `lugar`, `ministerio`), each announced as an event of its own. Its
  *   optional `desde` (YYYY-MM-DD, up to 6 days before the Monday) starts the run earlier, and `hasta`
- *   (YYYY-MM-DD, not after the Sunday) ends it earlier.
+ *   (YYYY-MM-DD, not after the Sunday) ends it earlier. An event reading with `anticipado: true` keeps a card
+ *   dated after the run (a congress next month, announced ahead).
  * @param {string|null} [args.despues] a weekday: keep only the events after that day's service (the video
  *   played at it): the days after its first occurrence in the run, and that day's own events that start after
  *   its last recurring service; slugs are still those of the whole run
@@ -266,7 +268,9 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
         continue;
       }
       const { fecha, fechaFin, horaTarjeta } = fechas;
-      if ((fechaFin ?? fecha) < inicio || fecha > fin) {
+      // A card after the run stays only when the reading marks it `anticipado`: announced ahead, at the end.
+      const anticipado = fecha > fin && lectura.eventos?.[raw.id]?.anticipado === true;
+      if (!anticipado && ((fechaFin ?? fecha) < inicio || fecha > fin)) {
         descartados.push(descartar(raw, 'outside the week'));
         continue;
       }
@@ -277,6 +281,12 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
         if (isHora(leido.hora)) [hora, horaFuente] = [leido.hora, leido.horaFuente];
         else problemas.push(`lectura "${raw.id}": hora "${leido.hora}" is not HH:MM (24h), ignored`);
       }
+      // Several services in one event (a congress): their times, for the narration; the card has no single hora.
+      const horas = (Array.isArray(leido.horas) ? leido.horas : []).filter((h) => {
+        if (isHora(h)) return true;
+        problemas.push(`lectura "${raw.id}": horas "${h}" is not HH:MM (24h), ignored`);
+        return false;
+      });
       const lugarTarjeta = raw.location?.trim();
       const titulo = leido.titulo?.trim() || raw.summary;
       const virtual = leido.modalidad === 'virtual';
@@ -293,6 +303,7 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
         hora,
         horaFuente,
         horaNota: leido.horaNota,
+        horas: hora ? [] : horas,
         lugar: lugarTarjeta || leido.lugar || null,
         lugarFuente: lugarTarjeta ? 'calendario' : leido.lugar ? leido.lugarFuente : null,
         modalidad: virtual ? 'virtual' : 'presencial',

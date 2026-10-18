@@ -124,3 +124,26 @@ test('a caller can set the length range, e.g. for a line with no closing', () =>
   assert.deepEqual(avisos(corto, conHora, {}), ['longitud']);
   assert.deepEqual(checkGuion(corto, conHora, {}, { longitud: { min: 6, max: 30 } }).avisos, []);
 });
+
+// A congress over two days with three services a day: no single hora, but its record lists the horas.
+const congreso = {
+  ...sinHora,
+  titulo: 'Congreso de jóvenes',
+  fecha: '2026-11-01',
+  fechaFin: '2026-11-02',
+  diaSemana: 'domingo',
+  fechaTexto: 'del domingo 1 al lunes 2 de noviembre',
+  horas: ['10:00', '14:00', '17:00'],
+};
+
+test('an event with several horas may say each of them, and only those', () => {
+  const linea = 'El domingo y el lunes, el congreso de jóvenes, con cultos a las diez de la mañana, a las dos de la tarde y a las cinco de la tarde.';
+  assert.deepEqual(reglas(linea, congreso), []);
+  assert.ok(reglas('El domingo, el congreso de jóvenes, a las tres de la tarde.', congreso).includes('hora-distinta'));
+  assert.ok(reglas('El domingo, el congreso de jóvenes, a las diez de la noche.', congreso).includes('periodo-distinto'));
+});
+
+test('an event over several days may name each of its weekdays, and only those', () => {
+  assert.ok(!reglas('El domingo y el lunes, el congreso de jóvenes.', congreso).includes('dia-distinto'));
+  assert.ok(reglas('El martes, el congreso de jóvenes.', congreso).includes('dia-distinto'));
+});

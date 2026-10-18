@@ -2,7 +2,7 @@
 // Errors are claims the record does not support; notices are style guidance.
 // It is a heuristic net, not proof: the orchestrator still reads every script.
 
-import { horaPalabra, horaPartes, nombreDia, periodoDe, stripAccents } from './spanish.mjs';
+import { addDays, diaSemana, horaHablada, horaPalabra, horaPartes, horaTexto, nombreDia, periodoDe, stripAccents } from './spanish.mjs';
 
 const norm = (s) => stripAccents(s).toLowerCase();
 const escapar = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -47,43 +47,52 @@ export function checkGuion(texto, evento, iglesia = {}, { longitud = LONGITUD } 
   const aviso = (regla, mensaje) => avisos.has(regla) || avisos.set(regla, mensaje);
 
   const t = norm(texto);
-  const esperado = evento.hora ? horaPartes(evento.hora) : null;
+  // The event's time, or the several times of an event that has more than one (`horas`: a congress's services).
+  const horas = evento.hora ? [evento.hora] : Array.isArray(evento.horas) ? evento.horas : [];
+  const esperadas = horas.map(horaPartes);
+  const comoSeDice = evento.horaHablada ?? horas.map(horaHablada).join(', ');
   const sinHora = () => error('hora-sin-respaldo', `the script gives a time but "${evento.titulo}" has none in events.json`);
 
   // Times, as digits ("6:45 p. m.", "7 pm") and as words ("a las siete de la noche").
   const spans = [];
   const revisarReloj = (m, h, min, marcador) => {
     spans.push([m.index, m.index + m[0].length]);
-    if (!esperado) return sinHora();
-    const okMin = min === undefined ? esperado.minutos === 0 : Number(min) === esperado.minutos;
+    if (!esperadas.length) return sinHora();
     const hora = Number(h);
-    const okHora = marcador
-      ? (hora % 12 || 12) === esperado.h12 && (marcador === 'p') === (esperado.h24 >= 12)
-      : hora === esperado.h24 || hora === esperado.h12;
-    if (!okHora || !okMin) error('hora-distinta', `"${m[0].trim()}" does not match ${evento.horaTexto}`);
+    const coincide = (esperado) =>
+      (min === undefined ? esperado.minutos === 0 : Number(min) === esperado.minutos) &&
+      (marcador
+        ? (hora % 12 || 12) === esperado.h12 && (marcador === 'p') === (esperado.h24 >= 12)
+        : hora === esperado.h24 || hora === esperado.h12);
+    if (!esperadas.some(coincide)) error('hora-distinta', `"${m[0].trim()}" does not match ${evento.horaTexto ?? horas.map(horaTexto).join(', ')}`);
   };
   for (const m of t.matchAll(RELOJ)) revisarReloj(m, m[1], m[2], m[3]);
   for (const m of t.matchAll(HORA_MERIDIANO)) revisarReloj(m, m[1], undefined, m[2]);
 
   for (const m of t.matchAll(HORA_HABLADA)) {
-    if (!esperado) {
+    if (!esperadas.length) {
       sinHora();
       break;
     }
-    if (m[1] !== horaPalabra(esperado.h12)) {
-      error('hora-distinta', `"${m[0]}" does not match ${evento.horaHablada}`);
+    const candidatas = horas.filter((h) => horaPalabra(horaPartes(h).h12) === m[1]);
+    if (!candidatas.length) {
+      error('hora-distinta', `"${m[0]}" does not match ${comoSeDice}`);
       continue;
     }
     const p = PERIODO_DICHO.exec(t.slice(m.index + m[0].length));
     const dicho = p && (p[1] ?? p[2]);
     if (!dicho) aviso('sin-periodo', `"${m[0]}" does not say the part of the day`);
-    else if (dicho !== stripAccents(periodoDe(evento.hora))) {
-      error('periodo-distinto', `"${dicho}" does not match ${evento.horaHablada}`);
+    else if (!candidatas.some((h) => dicho === stripAccents(periodoDe(h)))) {
+      error('periodo-distinto', `"${dicho}" does not match ${comoSeDice}`);
     }
   }
 
   // Weekdays: only the event's own, or one its title already contains.
   const dias = new Set([stripAccents(evento.diaSemana)]);
+  // An event over several days (fecha to fechaFin) may name each of its weekdays.
+  if (evento.fecha && evento.fechaFin) {
+    for (let f = evento.fecha; f <= evento.fechaFin; f = addDays(f, 1)) dias.add(stripAccents(diaSemana(f)));
+  }
   for (const m of norm(evento.titulo).matchAll(DIAS)) dias.add(stripAccents(nombreDia(m[1])));
   for (const m of t.matchAll(DIAS)) {
     if (!dias.has(stripAccents(nombreDia(m[1])))) {

@@ -480,6 +480,10 @@ the nearest one first.
   script after each round, never voice until they say so, and keep their wording.
 - **An event that spans non-consecutive days** (Thursday and Saturday): one event per day,
   each with the same image, not one event with a range.
+- **An event after the run, announced ahead** (a congress next month, "al final de todo"):
+  give its reading `"anticipado": true`; it stays in the record, sorted last.
+- **Several services in one event** (three a day, at 10, 2 and 5): give its reading
+  `"horas": ["10:00", "14:00", "17:00"]` and no `hora`; the narration may say each of them.
 
 ## Reading the calendar and church-info.md
 

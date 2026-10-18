@@ -618,3 +618,27 @@ test('lectura.hasta outside the run is a problem and is ignored', () => {
     assert.match(problemas[0], /hasta/);
   }
 });
+
+test('a card after the run is dropped, unless the reading marks it anticipado: it is announced ahead, at the end', () => {
+  const tarde = allDay('Congreso', '2026-10-03', '2026-10-05');
+  assert.deepEqual(run([tarde], { lectura: { iglesia: IGLESIA } }).doc.events, []);
+  const { doc, problemas } = run([tarde, allDay('Culto', '2026-09-22', '2026-09-23')], {
+    lectura: { iglesia: IGLESIA, eventos: { 'id-Congreso': { anticipado: true } } },
+  });
+  assert.deepEqual(problemas, []);
+  assert.deepEqual(doc.events.map((e) => [e.titulo, e.fechaTexto]), [
+    ['Culto', 'martes 22 de septiembre'],
+    ['Congreso', 'del sábado 3 al domingo 4 de octubre'],
+  ]);
+  assert.equal(doc.semana.fin, '2026-09-27');
+});
+
+test("the reading's horas (several services in a day) reach the record; a malformed one is a problem", () => {
+  const card = allDay('Congreso', '2026-09-26', '2026-09-28');
+  const e = only([card], { lectura: { iglesia: IGLESIA, eventos: { 'id-Congreso': { horas: ['10:00', '14:00', '17:00'] } } } });
+  assert.equal(e.hora, null);
+  assert.deepEqual(e.horas, ['10:00', '14:00', '17:00']);
+  const { doc, problemas } = run([card], { lectura: { iglesia: IGLESIA, eventos: { 'id-Congreso': { horas: ['10:00', '2pm'] } } } });
+  assert.deepEqual(doc.events[0].horas, ['10:00']);
+  assert.match(problemas[0], /2pm/);
+});
