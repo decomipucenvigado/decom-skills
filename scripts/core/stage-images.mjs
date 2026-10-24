@@ -28,9 +28,11 @@ export function stageImages({ carpeta, respaldo, publico, slugs }) {
   rmSync(destino, { recursive: true, force: true });
   const imagenes = {};
   for (const slug of slugs) {
-    const carpetas = [carpeta, respaldo].filter(Boolean);
-    const origen =
-      carpetas.map((c) => imagenAportada(c, slug)).find(Boolean) ?? carpetas.map((c) => join(c, slug, 'ad.png')).find(existsSync);
+    // The run's own folder first, whole: a flyer the week supplied must not hide an image made for this run.
+    const origen = [carpeta, respaldo]
+      .filter(Boolean)
+      .map((c) => imagenAportada(c, slug) ?? [join(c, slug, 'ad.png')].find(existsSync))
+      .find(Boolean);
     if (!origen) continue;
     const nombre = `${slug}${extname(origen)}`;
     mkdirSync(destino, { recursive: true });

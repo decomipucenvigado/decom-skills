@@ -73,7 +73,8 @@ export function weekPlan({ doc, sections, alignment, hasMusic, imagenes = {}, mo
   return {
     items,
     reel: {
-      semanaTexto: doc.semana.texto,
+      // The opening card names the church's schedule, not dates (IPUC Envigado Central's ask, W43).
+      semanaTexto: doc.iglesia?.nombre ? `Programación ${doc.iglesia.nombre}` : doc.semana.texto,
       iglesia: doc.iglesia,
       items,
       musicSrc: hasMusic ? MUSIC_SRC : null,

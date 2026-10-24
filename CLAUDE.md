@@ -188,9 +188,11 @@ tracked in this repo.
   time and place each will use, and only the real doubts, each needing the
   person's own answer, one by one) and one showing the script before the paid
   voice. Details in the skill.
-- The church name reaches the audience in two places only. The voice says it once,
+- The church name reaches the audience in three places only. The voice says it once,
   in the weekly intro ("Bienvenidos a <name>"), and `validate.mjs` checks the intro
-  against `church-info.md`. On screen it appears only through `Logo`: the logo image
+  against `church-info.md`. The reel's opening card reads "Programación <name>"
+  (`render-plan.mjs` builds it from `events.json`; the dates stay out of it). Elsewhere
+  on screen it appears only through `Logo`: the logo image
   carries it, and only when `brand.logo` is null does `Logo` draw the name as a
   wordmark, reading it from `IglesiaProvider` (`video/src/church.tsx`, wrapped once
   in `EventAd` and `WeeklyReel`); this org does not need that fallback. By the

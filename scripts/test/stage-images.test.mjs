@@ -70,3 +70,15 @@ test("imagenAportada finds a supplied image by slug, and nothing for an event wi
   assert.equal(imagenAportada(carpeta, 'culto'), join(carpeta, 'aportadas', 'culto.png'));
   assert.equal(imagenAportada(carpeta, 'ayuno'), null);
 });
+
+test("a service's own canvas image wins over a flyer the whole week supplied for the same slug", (t) => {
+  const { carpeta, publico } = sandbox(t);
+  mkdirSync(join(carpeta, 'aportadas'));
+  writeFileSync(join(carpeta, 'aportadas', 'vigilia.jpg'), 'flyer de la semana pasada');
+  const parte = join(carpeta, '..', '2026-W39-sabado');
+  mkdirSync(join(parte, 'vigilia'), { recursive: true });
+  writeFileSync(join(parte, 'vigilia', 'ad.png'), 'imagen nueva');
+  const imagenes = stageImages({ carpeta: parte, respaldo: carpeta, publico, slugs: ['vigilia'] });
+  assert.deepEqual(imagenes, { vigilia: 'imagenes/vigilia.png' });
+  assert.equal(readFileSync(join(publico, 'imagenes', 'vigilia.png'), 'utf8'), 'imagen nueva');
+});

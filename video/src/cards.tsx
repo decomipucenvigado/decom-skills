@@ -5,7 +5,7 @@ import {useLayout} from './layout';
 import {Backdrop, Cta, Headline, Reveal, Logo} from './templates/parts';
 import type {Iglesia} from './types';
 
-/** Opens the weekly video with the dated card, e.g. "Semana del 21 al 27 de septiembre". */
+/** Opens the weekly video with its title card: "Programación <church>" (core/render-plan.mjs). */
 export const IntroCard: React.FC<{semanaTexto: string}> = ({semanaTexto}) => {
   const {u} = useLayout();
   return (

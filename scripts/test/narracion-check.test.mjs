@@ -62,6 +62,9 @@ test("a service's video may say 'el resto de la semana' instead of the dates; th
   const resto = 'Bienvenidos a Iglesia Ejemplo, esta es la programación para el resto de la semana.';
   assert.deepEqual(reglas(run(intro(resto), { ...UNO, semana: { ...UNO.semana, resto: true } })), []);
   assert.deepEqual(reglas(run(intro(resto), UNO)), ['intro-sin-semana']);
+  const proximos = 'Bienvenidos a Iglesia Ejemplo, esta es la programación para los próximos días.';
+  assert.deepEqual(reglas(run(intro(proximos), { ...UNO, semana: { ...UNO.semana, resto: true } })), []);
+  assert.deepEqual(reglas(run(intro(proximos), UNO)), ['intro-sin-semana']);
 });
 
 test('the intro speaks dates as words, not digits', () => {

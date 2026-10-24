@@ -35,5 +35,7 @@
     El video de la semana se publica el sábado: los eventos del domingo
     siguiente se anuncian como "mañana domingo", no con la fecha.
     Los videos de cada culto (martes, jueves...) dicen "esta es la programación
-    para el resto de la semana", sin fechas en la bienvenida.
+    para los próximos días", sin fechas en la bienvenida.
+    La animación inicial de todos los videos dice "Programación IPUC Envigado
+    Central", nunca una fecha.
 

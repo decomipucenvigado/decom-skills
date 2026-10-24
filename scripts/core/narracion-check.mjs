@@ -59,8 +59,8 @@ export function checkNarracion({ sections, problems = [] }, doc) {
     const t = plano(intro);
     if (/\d/.test(intro)) error('intro-cifras', 'the intro must speak dates as words, not digits');
     if (!semana?.hablada) error('semana-sin-hablada', 'events.json has no semana.hablada: run scripts/normalize.mjs again');
-    // A service's video (semana.resto) may say "el resto de la semana" instead of the dates.
-    else if (!t.includes(plano(semana.hablada)) && !(semana.resto && t.includes('resto de la semana'))) {
+    // A service's video (semana.resto) may say "los próximos días" or "el resto de la semana" instead of the dates.
+    else if (!t.includes(plano(semana.hablada)) && !(semana.resto && ['proximos dias', 'resto de la semana'].some((f) => t.includes(f)))) {
       error('intro-sin-semana', `the intro must say the week exactly as "${semana.hablada}"`);
     }
     if (iglesia.nombre && !t.includes(plano(iglesia.nombre))) error('intro-sin-iglesia', `the intro must name the church, "${iglesia.nombre}"`);

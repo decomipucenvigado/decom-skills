@@ -85,9 +85,9 @@ test('items carry the record, the church and the words of their line', () => {
   assert.equal(items[0].palabras, 1);
 });
 
-test('the reel takes the week text and church from events.json and reuses the same items', () => {
+test("the reel's opening card reads 'Programación <church>', whatever the run's dates", () => {
   const { items, reel } = plan();
-  assert.equal(reel.semanaTexto, 'Semana del 21 al 27 de septiembre');
+  assert.equal(reel.semanaTexto, 'Programación Iglesia Ejemplo');
   assert.equal(reel.iglesia, iglesia);
   assert.equal(reel.items, items);
 });
