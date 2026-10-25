@@ -485,6 +485,19 @@ the nearest one first.
   give its reading `"anticipado": true`; it stays in the record, sorted last.
 - **Several services in one event** (three a day, at 10, 2 and 5): give its reading
   `"horas": ["10:00", "14:00", "17:00"]` and no `hora`; the narration may say each of them.
+- **A Sunday service's video for the coming week** (Sunday 25 announces Monday 26 on): name
+  the run after the next week (`2026-W44-domingo`) with `desde` that Sunday, so `domingo` is
+  it; give it its own `raw/` (only the cards still ahead) and `aportadas/`. A service board
+  from last week is reused with its date changed (and its palette, if the ministry changed),
+  then exported with `--dir`; an image you made earlier with words the audit does not know
+  (a slogan) goes into `aportadas/` instead.
+- **A registration QR** the person sends with a flyer: put it on the flyer itself, in a white
+  card in an empty corner ("¡Regístrate aquí! Escanea el código"), keeping every fact of the
+  flyer visible, and save the result as the event's `aportadas/` image; the line says to scan
+  "el código que ves en pantalla".
+- **A flyer the person said not to use** is never staged: a run's own image wins over one the
+  week's folder holds for the same slug (`stage-images.mjs`), and checking
+  `video/public/imagenes/` after the render shows which file each scene took.
 
 ## Reading the calendar and church-info.md
 
