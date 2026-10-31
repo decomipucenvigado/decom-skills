@@ -495,6 +495,12 @@ the nearest one first.
   card in an empty corner ("¡Regístrate aquí! Escanea el código"), keeping every fact of the
   flyer visible, and save the result as the event's `aportadas/` image; the line says to scan
   "el código que ves en pantalla".
+- **A flyer that is not 16:9** (a 3:2 photo, a square post) must fill the whole frame: the
+  person does not want the blue bars `objectFit: contain` leaves. Before saving it to
+  `aportadas/`, fit it to 1920x1080 yourself: scale it so its text keeps at least ~30 px
+  above and below inside 1080 (the scene's 5% push-in crops 27 px each side), crop the rest,
+  and fill any thin side strips by mirroring the flyer's own edges. Check the top and bottom
+  lines at full zoom before rendering.
 - **A flyer the person said not to use** is never staged: a run's own image wins over one the
   week's folder holds for the same slug (`stage-images.mjs`), and checking
   `video/public/imagenes/` after the render shows which file each scene took.
