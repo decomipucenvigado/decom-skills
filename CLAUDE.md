@@ -111,7 +111,10 @@ tracked in this repo.
   `scripts/core/tts.mjs` also accepts the `ELEVENLABS_*` spelling. Never print
   their values. The voice the church chose, its model and its settings are in
   `scripts/voice.json` (version-controlled; its `voiceId` wins over the
-  environment's, which is only the fallback when it names none). TTS goes through
+  environment's, which is only the fallback when it names none). Its `pronunciacion`
+  maps a written word to how the voice must say it (`"IPUC": "Ipuc"`, so it is read as a
+  word, not spelled as an English acronym); the script keeps the written form, and the
+  spelling must keep the word's length so the timing still maps onto the script. TTS goes through
   `scripts/tts.mjs` against the REST API — not the MCP connector — so that a past
   week re-renders identically. Motif image generation is different: it is optional,
   asked about once a run (`.claude/skills/church-ads/SKILL.md` step 4), and goes

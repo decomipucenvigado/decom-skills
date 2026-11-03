@@ -20,7 +20,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, loadEnv, parseArgs, weekDir } from './core/project.mjs';
 import { buildNarration, parseNarracion } from './core/narracion.mjs';
-import { buildRequest, cacheKey, parseTimestampResponse, resolveCredentials } from './core/tts.mjs';
+import { alineacionDelGuion, buildRequest, cacheKey, parseTimestampResponse, resolveCredentials, textoHablado } from './core/tts.mjs';
 
 loadEnv();
 const { flags, positional } = parseArgs(process.argv.slice(2), { booleans: ['force'] });
@@ -63,7 +63,9 @@ const carpeta = weekDir(week);
 const mp3 = join(carpeta, 'voz.mp3');
 const meta = join(carpeta, 'voz.json');
 const alineacion = join(carpeta, 'voz.alineacion.json');
-const llave = cacheKey({ text, voice, voiceId });
+// The voice reads voice.json's pronunciations ("IPUC" said as a word, not spelled); the timing maps back to the script.
+const hablado = textoHablado(text, voice.pronunciacion);
+const llave = cacheKey({ text: hablado, voice, voiceId });
 
 if (!flags.force && [mp3, meta, alineacion].every(existsSync) && JSON.parse(readFileSync(meta, 'utf8')).cacheKey === llave) {
   console.log(`${week}: voz.mp3 is up to date, no API call made.`);
@@ -75,7 +77,7 @@ const degradar = (motivo) => {
   process.exit(3);
 };
 
-const { url, init } = buildRequest({ text, voice, voiceId, apiKey });
+const { url, init } = buildRequest({ text: hablado, voice, voiceId, apiKey });
 let res;
 try {
   res = await fetch(url, { ...init, signal: AbortSignal.timeout(120_000) });
@@ -87,6 +89,7 @@ if (!res.ok) degradar(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
 let voz;
 try {
   voz = parseTimestampResponse(await res.json());
+  voz.alignment = alineacionDelGuion(voz.alignment, text);
 } catch (err) {
   degradar(err.message);
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequest, cacheKey, parseTimestampResponse, resolveCredentials } from '../core/tts.mjs';
+import { alineacionDelGuion, buildRequest, cacheKey, parseTimestampResponse, resolveCredentials, textoHablado } from '../core/tts.mjs';
 
 const VOICE = {
   model: 'eleven_multilingual_v2',
@@ -72,4 +72,23 @@ test('a response without audio or without a matching alignment is rejected', () 
     () => parseTimestampResponse({ audio_base64: 'AA==', alignment: { ...ALINEACION, character_end_times_seconds: [0.1] } }),
     /no per-character alignment/,
   );
+});
+
+test('textoHablado swaps each listed word, whole words only, for how the voice should say it', () => {
+  const p = { IEJ: 'Iej' };
+  assert.equal(textoHablado('Bienvenidos a IEJ Centro, la IEJ te espera.', p), 'Bienvenidos a Iej Centro, la Iej te espera.');
+  assert.equal(textoHablado('IEJOTA no cambia', p), 'IEJOTA no cambia');
+  assert.equal(textoHablado('Sin lista', undefined), 'Sin lista');
+});
+
+test('a pronunciation of a different length is refused, so the timing still matches the script', () => {
+  assert.throws(() => textoHablado('Hola IEJ', { IEJ: 'I-e-jota' }), /same length/);
+});
+
+test("alineacionDelGuion puts the script's own characters back on the spoken timing", () => {
+  const a = { characters: [...'a Iej'], character_start_times_seconds: [0, 1, 2, 3, 4], character_end_times_seconds: [1, 2, 3, 4, 5] };
+  const r = alineacionDelGuion(a, 'a IEJ');
+  assert.equal(r.characters.join(''), 'a IEJ');
+  assert.deepEqual(r.character_end_times_seconds, [1, 2, 3, 4, 5]);
+  assert.throws(() => alineacionDelGuion(a, 'a IEJ!'), /alignment/);
 });

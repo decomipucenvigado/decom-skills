@@ -46,6 +46,33 @@ export function parseTimestampResponse(json) {
   };
 }
 
+/**
+ * The text the voice reads: each word of voice.json's `pronunciacion` (e.g. "IPUC", which the voice
+ * would spell as an English acronym) swapped, as a whole word, for how it is said ("Ipuc"). The
+ * spelling must keep the word's length, so the timing of each character still lands on the script.
+ */
+export function textoHablado(text, pronunciacion = {}) {
+  let hablado = text;
+  for (const [palabra, dicha] of Object.entries(pronunciacion ?? {})) {
+    if ([...palabra].length !== [...dicha].length) {
+      throw new Error(`voice.json pronunciacion "${palabra}" -> "${dicha}": the spelling must keep the same length`);
+    }
+    const escapada = palabra.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    hablado = hablado.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapada}(?![\\p{L}\\p{N}])`, 'gu'), dicha);
+  }
+  return hablado;
+}
+
+/** The spoken text's per-character timing, carrying the script's own characters again (same length by textoHablado). */
+export function alineacionDelGuion(alignment, text) {
+  if (alignment.characters.join('').length !== text.length) {
+    throw new Error('the alignment does not have one character per character of the script');
+  }
+  let i = 0;
+  const caracteres = alignment.characters.map((c) => text.slice(i, (i += c.length)));
+  return { ...alignment, characters: caracteres };
+}
+
 /** Identifies one exact audio result, so an unchanged script is never paid for twice. */
 export function cacheKey({ text, voice, voiceId }) {
   const { model, stability, similarity_boost, style, use_speaker_boost, output_format } = voice;

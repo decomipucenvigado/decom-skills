@@ -5,5 +5,8 @@
   "similarity_boost": 0.75,
   "style": 0,
   "use_speaker_boost": true,
-  "output_format": "mp3_44100_128"
+  "output_format": "mp3_44100_128",
+  "pronunciacion": {
+    "IPUC": "Ipuc"
+  }
 }
