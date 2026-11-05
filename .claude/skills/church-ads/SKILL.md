@@ -499,8 +499,13 @@ the nearest one first.
   person does not want the blue bars `objectFit: contain` leaves. Before saving it to
   `aportadas/`, fit it to 1920x1080 yourself: scale it so its text keeps at least ~30 px
   above and below inside 1080 (the scene's 5% push-in crops 27 px each side), crop the rest,
-  and fill any thin side strips by mirroring the flyer's own edges. Check the top and bottom
+  and fill the side strips: mirror the flyer's edges only when they are plain background; when
+  people, text or a logo reach the edge (mirroring would show them twice), fill with the
+  flyer's own background color and fade the flyer's sides into it. Check the top and bottom
   lines at full zoom before rendering.
+- **A flyer with too much text** that the person asks to redo: make a new image in the styles
+  already used (for a prayer event, the Vigilia night-and-gold palette) with only the title, one
+  short line of invitation and the date, time and place chips; the details go in the narration.
 - **A flyer the person said not to use** is never staged: a run's own image wins over one the
   week's folder holds for the same slug (`stage-images.mjs`), and checking
   `video/public/imagenes/` after the render shows which file each scene took.
