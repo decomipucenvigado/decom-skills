@@ -600,6 +600,21 @@ test("on a service day, despues keeps that day's events that start after its las
   assert.equal(doc.semana.hablada, 'del veinte al veintisiete de septiembre');
 });
 
+test('on a service day, an event announced by several times (horas) stays when its first time is after the last service', () => {
+  const { doc, problemas } = run([allDay('Feria', '2026-09-20', '2026-09-21')], {
+    lectura: {
+      iglesia: IGLESIA,
+      desde: '2026-09-20',
+      eventos: { 'id-Feria': { horas: ['14:00', '16:00'] } },
+      recurrentes: [{ dia: 'domingo', titulo: 'Escuela', hora: '10:00' }],
+    },
+    despues: 'domingo',
+  });
+  assert.deepEqual(problemas, []);
+  assert.equal(doc.events[0].titulo, 'Feria');
+  assert.deepEqual(doc.events[0].horas, ['14:00', '16:00']);
+});
+
 test('lectura.hasta ends the run before the Sunday: later days drop out and the week text says it', () => {
   const { doc, problemas } = run([allDay('Sabado', '2026-09-26', '2026-09-27'), allDay('Domingo', '2026-09-27', '2026-09-28')], {
     lectura: { iglesia: IGLESIA, hasta: '2026-09-26', recurrentes: [{ dia: 'domingo', titulo: 'Culto', hora: '09:00' }] },

@@ -339,7 +339,9 @@ export function normalizeWeek({ week, calendars, lectura = {}, overrides = {}, d
         .map((e) => e.hora)
         .sort()
         .at(-1);
-      eventos = eventos.filter((e) => e.fecha > corte || (e.fecha === corte && ultimoServicio && e.hora > ultimoServicio));
+      // An event announced by several times (horas) starts at the first of them.
+      const empieza = (e) => e.hora ?? e.horas?.[0];
+      eventos = eventos.filter((e) => e.fecha > corte || (e.fecha === corte && ultimoServicio && empieza(e) > ultimoServicio));
       inicioTexto = eventos.some((e) => e.fecha === corte) ? corte : addDays(corte, 1);
     }
   }
