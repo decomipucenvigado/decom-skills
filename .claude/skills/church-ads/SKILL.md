@@ -506,6 +506,12 @@ the nearest one first.
 - **A flyer with too much text** that the person asks to redo: make a new image in the styles
   already used (for a prayer event, the Vigilia night-and-gold palette) with only the title, one
   short line of invitation and the date, time and place chips; the details go in the narration.
+- **Listen to the voice before sending** (you cannot hear it): the voice can garble a phrase
+  ("a las sison" for "a las seis y media"). After `tts.mjs`, send `voz.mp3` to ElevenLabs
+  speech-to-text (`POST https://api.elevenlabs.io/v1/speech-to-text`, `model_id=scribe_v1`,
+  `language_code=spa`, the key from the environment in `xi-api-key`, never printed) and read
+  the transcript against the script. A garbled phrase is fixed by rewording that line (the same
+  text is cached and would come back the same), then voicing again.
 - **A flyer the person said not to use** is never staged: a run's own image wins over one the
   week's folder holds for the same slug (`stage-images.mjs`), and checking
   `video/public/imagenes/` after the render shows which file each scene took.
